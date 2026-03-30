@@ -18,7 +18,6 @@ echo "Iterations: $ITERATIONS"
 echo ""
 
 # Initialize
-touch qa-progress.txt
 if [ ! -f "qa-report.json" ]; then
   echo '[]' > qa-report.json
 fi
@@ -61,7 +60,6 @@ Read these files before starting:
 @pre-setup.md
 @build-spec.md
 @prd.json
-@qa-progress.txt
 @qa-report.json
 @ever-cli-reference.md
 

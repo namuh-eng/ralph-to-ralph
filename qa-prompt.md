@@ -16,8 +16,7 @@ The original product is your **source of truth**.
 ## Your Inputs
 - `build-spec.md`: The product spec.
 - `prd.json`: Feature list with expected behavior, UI details, and tests.
-- `qa-progress.txt`: What YOU have tested so far (read first, update at end).
-- `qa-report.json`: Your test results (you create and maintain this).
+- `qa-report.json`: Your test results — tracks what's been tested and bugs found. Read this first to see what's already been QA'd.
 - `ever-cli-reference.md`: Ever CLI command reference.
 - `screenshots/inspect/`: Reference screenshots from the original.
 - `screenshots/qa/`: Save your QA screenshots here.
@@ -25,8 +24,8 @@ The original product is your **source of truth**.
 
 ## This Iteration
 
-1. Read `qa-progress.txt` to see what has been tested.
-2. Read `prd.json` to find the next feature to test (first entry you haven't QA'd yet). Note its `category`.
+1. Read `qa-report.json` to see what has been tested (check `feature_id` entries).
+2. Read `prd.json` to find the next feature to test (first entry whose `id` is NOT in `qa-report.json`). Note its `category`.
 
 ### Step 1: Automated checks
 3. Run `make test` to verify unit tests still pass. Fix any failures before proceeding.
@@ -78,8 +77,7 @@ Also run full `make test-e2e` to catch cross-feature regressions.
     }
     ```
 15. If bugs found: fix ALL bugs for this feature, then run `make check && make test` once. Commit together: `git commit -m "QA fix: <feature> — fixed N bugs: <brief list>"`
-16. Update `qa-progress.txt`.
-17. `git add -A`, detailed commit message, `git push`.
+16. `git add -A`, detailed commit message, `git push`.
 
 ## Rules
 - **HARD STOP: Test exactly ONE feature per invocation.** Commit, push, output promise, stop.
