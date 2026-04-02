@@ -30,7 +30,7 @@ for ((i=1; i<=$ITERATIONS; i++)); do
   echo "--- Inspection iteration $i/$ITERATIONS ---"
 
   result=$(timeout 1200 claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
-"@inspect-prompt.md @inspect-spec.md @ever-cli-reference.md @prd.json @inspect-progress.txt
+"@inspect-prompt.md @inspect-spec.md @ever-cli-reference.md @prd.json @inspect-progress.txt @pre-setup.md @ralph-config.json
 
 TARGET URL: $TARGET_URL
 ITERATION: $i of $ITERATIONS

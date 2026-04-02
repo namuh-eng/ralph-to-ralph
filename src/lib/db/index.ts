@@ -3,7 +3,7 @@ import { Pool } from "pg";
 import * as schema from "./schema";
 
 const connectionString = process.env.DATABASE_URL;
-const needsSsl = connectionString?.includes("amazonaws.com");
+const needsSsl = process.env.DB_SSL === "true";
 
 const pool = new Pool({
   connectionString,

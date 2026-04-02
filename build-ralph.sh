@@ -42,7 +42,7 @@ for ((i=1; i<=$ITERATIONS; i++)); do
   fi
 
   result=$(timeout 1200 claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
-"@build-prompt.md @pre-setup.md @build-spec.md @prd.json @build-progress.txt @CLAUDE.md
+"@build-prompt.md @pre-setup.md @build-spec.md @prd.json @build-progress.txt @CLAUDE.md @ralph-config.json
 
 ITERATION: $i of $ITERATIONS
 PROGRESS: $PASSES/$TOTAL features passed

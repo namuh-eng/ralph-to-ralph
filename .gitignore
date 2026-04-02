@@ -13,3 +13,4 @@ packages/sdk/dist/
 clone-product-docs/
 .current-feature.json
 tsconfig.tsbuildinfo
+ralph-config.json

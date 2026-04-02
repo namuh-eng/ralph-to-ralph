@@ -97,16 +97,15 @@ npx playwright install chromium
 
 # Configure
 cp .env.example .env
-# Edit .env with your AWS, Cloudflare, and other credentials
+# Edit .env with your credentials
 
-# Provision AWS infrastructure (RDS, SES, S3, ECR)
-bash scripts/preflight.sh
-
-# Go
-./scripts/start.sh https://your-target-product.com
+# Onboard — collects target info, researches the product, configures your stack
+./onboard.sh
 ```
 
-That's it. The system will inspect the target, build every feature with tests, QA everything independently, and deploy to AWS App Runner.
+That's it. The onboarding script asks what product to clone, scans its docs/API, recommends a tech stack (AWS, GCP, or Azure — GCP/Azure are experimental), verifies your dependencies, configures the project, and automatically starts the build loop.
+
+> **Note:** `onboard.sh` calls `scripts/start.sh` automatically on success. You don't need to run `start.sh` directly.
 
 ## What Gets Built
 
@@ -212,9 +211,11 @@ The system is controlled by prompt files you can edit:
 
 ```
 ralph-to-ralph/
+├── onboard.sh                  # Entry point — onboards then starts the loop
+├── onboard-prompt.md           # Onboarding agent instructions
 ├── scripts/
-│   ├── start.sh                # Entry point — starts the loop
-│   ├── preflight.sh            # Provisions AWS infrastructure
+│   ├── start.sh                # Starts the build loop (called by onboard.sh)
+│   ├── preflight.sh            # Provisions cloud infrastructure
 │   └── generate-demo-keys.sh   # Generate API keys for demos
 ├── ralph-watchdog.sh           # Orchestrator (inspect → build → QA loop)
 ├── inspect-ralph.sh            # Phase 1 runner
@@ -265,7 +266,7 @@ Yes. If you already have a `prd.json`, you can run the build and QA phases direc
 <details>
 <summary><strong>Can I use this without AWS?</strong></summary>
 
-AWS is required for the full pipeline (RDS for database, SES for email, S3 for storage, App Runner for deployment). You could modify the prompts and `preflight.sh` to target a different cloud provider, but that's not supported out of the box.
+Yes! During onboarding, you can choose AWS (default), GCP, or Azure as your cloud provider. The onboarding script configures the project for your chosen provider. **Note:** GCP and Azure support is experimental — AWS is the most battle-tested path.
 </details>
 
 ## Contributing

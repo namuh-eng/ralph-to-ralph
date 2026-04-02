@@ -1,7 +1,7 @@
 import { defineConfig } from "drizzle-kit";
 
 const url = process.env.DATABASE_URL ?? "";
-const needsSsl = url.includes("amazonaws.com");
+const needsSsl = process.env.DB_SSL === "true";
 
 export default defineConfig({
   schema: "./src/lib/db/schema.ts",

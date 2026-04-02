@@ -157,6 +157,7 @@ Read these files as needed:
 @pre-setup.md
 @qa-report.json
 @ever-cli-reference.md
+@ralph-config.json
 
 QA PROGRESS: $TESTED/$TOTAL features tested
 FEATURE: $FEATURE_ID (category: $FEATURE_CAT)
