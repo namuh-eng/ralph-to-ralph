@@ -117,11 +117,27 @@ if [ -z "$TARGET_URL" ]; then
   echo "ERROR: Target URL is required."
   exit 1
 fi
+if ! [[ "$TARGET_URL" =~ ^https?:// ]]; then
+  echo "ERROR: Target URL must start with http:// or https://"
+  exit 1
+fi
+if [[ "$TARGET_URL" == *"<promise>"* ]] || [[ "$TARGET_URL" == *"</promise>"* ]]; then
+  echo "ERROR: Invalid characters in URL."
+  exit 1
+fi
 
 # Suggest a clone name from the URL (use -E for macOS BSD sed compatibility)
 SUGGESTED_NAME=$(echo "$TARGET_URL" | sed -E 's|https?://||;s|www\.||;s|\.[a-z]{2,}.*||')
 read -rp "What should we call the clone? [$SUGGESTED_NAME-clone]: " CLONE_NAME
 CLONE_NAME="${CLONE_NAME:-${SUGGESTED_NAME}-clone}"
+if [[ "$CLONE_NAME" == *"<promise>"* ]] || [[ "$CLONE_NAME" == *"</promise>"* ]]; then
+  echo "ERROR: Invalid characters in clone name."
+  exit 1
+fi
+if ! [[ "$CLONE_NAME" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+  echo "ERROR: Clone name must only contain letters, numbers, dots, hyphens, and underscores."
+  exit 1
+fi
 
 echo ""
 echo "Cloud provider options:"
@@ -165,6 +181,7 @@ echo "(This takes 1-5 minutes. Press Ctrl+C to cancel safely.)"
 echo ""
 
 # ── Step 2: Claude handles research + config generation (no Q&A needed) ──
+claude_exit=0
 result=$(timeout 1800 claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
 "@onboard-prompt.md @pre-setup.md @CLAUDE.md
 
@@ -179,9 +196,19 @@ The user has already provided their answers:
 SKIP Steps 1 and 2 (already answered above). Start directly from Step 3 (Technical Architecture Scan).
 Research the target product, generate ralph-config.json, check dependencies, rewrite config files, and install packages.
 Output <promise>ONBOARD_COMPLETE</promise> when done.
-Output <promise>ONBOARD_FAILED</promise> if any check fails.")
+Output <promise>ONBOARD_FAILED</promise> if any check fails.") || claude_exit=$?
 
 echo "$result"
+
+if [ "$claude_exit" -eq 124 ]; then
+  echo ""
+  echo "ERROR: Claude timed out after 30 minutes."
+  exit 1
+elif [ "$claude_exit" -ne 0 ]; then
+  echo ""
+  echo "ERROR: Claude exited with code $claude_exit"
+  exit 1
+fi
 
 # ── Step 3: Validate outputs ──
 if [[ "$result" == *"<promise>ONBOARD_COMPLETE</promise>"* ]]; then

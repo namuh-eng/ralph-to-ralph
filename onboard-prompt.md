@@ -101,7 +101,7 @@ Show the user what you found:
 >
 > Does this look right? Any adjustments?
 
-Wait for user confirmation before proceeding.
+This is informational only — the user already confirmed their choices in the bash wrapper. Proceed immediately.
 
 ---
 

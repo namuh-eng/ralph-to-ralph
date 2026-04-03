@@ -58,9 +58,9 @@ This is a **generic product cloning system** — the target could be any SaaS st
   - Product overview and branding (`{productname}-clone`)
   - Complete design system (colors, typography, layout, shared components)
   - All data models with field types
-  - **Backend Architecture** — map each feature to the AWS/cloud service that powers it
+  - **Backend Architecture** — map each feature to the cloud service that powers it (read `ralph-config.json` for the chosen provider)
   - **SDK/DX** — what SDK to build, what developer workflow to support
-  - **Deployment** — AWS deployment instructions (App Runner + RDS Postgres)
+  - **Deployment** — deployment instructions for the chosen cloud provider (read `ralph-config.json`)
   - **Build Order** — prioritized list, core features first
 
 - **Add `dependent_on` to every PRD entry** — list the IDs of related features that this feature depends on or shares components/data with. This gives the QA agent context about what else might break. Examples:
@@ -73,20 +73,20 @@ This is a **generic product cloning system** — the target could be any SaaS st
 5. **Build for a REAL Product, Not a Mock:**
    The clone must be a **fully functional, deployable product** with its own backend. When writing `build-spec.md`:
 
-   - **Identify the core infrastructure** the target product needs. Map each feature to the simplest cloud service:
-     - Email sending/receiving? → AWS SES
-     - File storage/uploads? → AWS S3
-     - Database? → RDS Postgres via Drizzle ORM
-     - DNS/domain verification? → AWS SES + Cloudflare API for auto-configuring DNS
+   - **Identify the core infrastructure** the target product needs. Read `ralph-config.json` for the chosen cloud provider, then map each feature to the simplest service on that provider:
+     - Email sending/receiving? → SES (AWS) / SendGrid (GCP) / Azure Communication Services
+     - File storage/uploads? → S3 (AWS) / Cloud Storage (GCP) / Blob Storage (Azure)
+     - Database? → Postgres via Drizzle ORM (provider-managed)
+     - DNS/domain verification? → Provider email service + Cloudflare API
      - Webhooks? → HTTP POST to registered URLs
-     - Queues/async jobs? → SQS or Lambda
+     - Queues/async jobs? → SQS (AWS) / Cloud Tasks (GCP) / Azure Queue Storage
      - Search? → Postgres full-text search
      - Charts/analytics? → Postgres aggregation queries
    - **The clone builds its OWN API** — it does NOT call the target product's API.
    - **No mock data, no SQLite, no fake backends.**
 
    **Pre-configured cloud credentials:**
-   - AWS CLI and `@aws-sdk/*` configured via `~/.aws/credentials` (no env vars needed)
+   - Cloud CLI and SDK configured for the chosen provider (see `ralph-config.json`)
    - `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ZONE_ID` in `.env` — for DNS record management
 
 6. **PRD Entry Priority:**
