@@ -184,6 +184,28 @@ case "${CLOUD_CHOICE:-1}" in
   *)       echo "Invalid choice. Using AWS."; CLOUD_PROVIDER="aws" ;;
 esac
 
+# ── Deployment tier (AWS only) ──
+DEPLOYMENT_TIER="personal"
+if [ "$CLOUD_PROVIDER" = "aws" ]; then
+  echo ""
+  echo "How will this clone be used?"
+  echo ""
+  echo "  1) Personal / solo dev  — App Runner + Neon (serverless Postgres)"
+  echo "     Simple setup, ~\$0-5/mo at low traffic, scales to zero."
+  echo "     No VPC, no cluster. Good for building and experimenting."
+  echo ""
+  echo "  2) Team / production    — ECS Fargate + RDS (private VPC)"
+  echo "     Full infrastructure: private subnets, ALB, security groups."
+  echo "     Right architecture for shared use or real traffic."
+  echo ""
+  read -rp "Choose deployment tier [1]: " TIER_CHOICE
+  case "${TIER_CHOICE:-1}" in
+    1|personal) DEPLOYMENT_TIER="personal" ;;
+    2|team)     DEPLOYMENT_TIER="team" ;;
+    *)          echo "Invalid choice. Using personal."; DEPLOYMENT_TIER="personal" ;;
+  esac
+fi
+
 # ── Verify cloud CLI is installed before the long research step ──
 case "$CLOUD_PROVIDER" in
   aws)
@@ -252,6 +274,7 @@ The user has already provided their answers:
 - Target URL: $TARGET_URL
 - Clone name: $CLONE_NAME
 - Cloud provider: $CLOUD_PROVIDER
+- Deployment tier: $DEPLOYMENT_TIER (personal = App Runner + Neon; team = ECS Fargate + RDS private VPC)
 - Framework: nextjs (default)
 - Database: postgres (default)
 - Skip deployment: $SKIP_DEPLOY (if true, do NOT set up container registry, Docker, or deployment infrastructure. Only provision database and services needed for local development.)

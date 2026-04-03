@@ -125,8 +125,10 @@ Write the file `ralph-config.json` with this exact schema:
   "targetUrl": "https://example.com",
   "targetName": "example-clone",
   "cloudProvider": "aws",
+  "deploymentTier": "personal",
   "framework": "nextjs",
   "database": "postgres",
+  "dbProvider": "neon",
   "skipDeploy": false,
   "services": {
     "email": { "provider": "ses", "package": "@aws-sdk/client-sesv2" },
@@ -148,6 +150,13 @@ Write the file `ralph-config.json` with this exact schema:
 
 **Required fields:** `targetUrl`, `targetName`, `cloudProvider`, `framework`, `database`.
 **Valid cloudProvider values:** `aws`, `gcp`, `azure`.
+**Valid deploymentTier values (AWS only):** `personal`, `team`.
+
+**AWS deployment tier rules:**
+- `deploymentTier: "personal"` → `dbProvider: "neon"`, deploy via App Runner. Neon is serverless Postgres with a public SSL endpoint — no VPC, no RDS, no VPC connector needed. Simple and cheap for solo use.
+- `deploymentTier: "team"` → `dbProvider: "rds"`, deploy via ECS Fargate + ALB + private VPC. RDS in a private subnet, only reachable from Fargate tasks via security group rules.
+
+For GCP and Azure, `deploymentTier` is always `"team"` (they don't have an equivalent personal-tier path configured).
 
 Only include services the clone actually needs in the `services` object.
 
@@ -392,48 +401,39 @@ The bash wrapper will call `start.sh` automatically.
 
 ## Preflight Script Templates
 
-### AWS Preflight Template (scripts/preflight.sh)
+### AWS Preflight Template — Personal tier (App Runner + Neon)
+
+Use this when `deploymentTier` is `"personal"`. Neon provides serverless Postgres over a
+public SSL endpoint — no VPC, no RDS, no VPC connector needed.
 
 ```bash
 #!/bin/bash
-# Pre-flight: provision AWS infrastructure
+# Pre-flight: provision AWS infrastructure (personal tier — App Runner + Neon)
 set -euo pipefail
 
 REGION="${AWS_REGION:-us-east-1}"
 APP_NAME="__APP_NAME__"
 
-echo "=== Pre-flight Infrastructure Setup (AWS) ==="
+echo "=== Pre-flight Infrastructure Setup (AWS — personal tier) ==="
 echo "Region: $REGION"
-
-# 1. RDS Postgres
+echo "Database: Neon (serverless Postgres — no AWS provisioning needed)"
 echo ""
-echo "--- RDS Postgres ---"
-if aws rds describe-db-instances --db-instance-identifier ${APP_NAME}-db --region $REGION 2>/dev/null | grep -q "available"; then
-  echo "RDS instance already exists and available."
-else
-  echo "Creating RDS Postgres instance..."
-  aws rds create-db-instance \
-    --db-instance-identifier ${APP_NAME}-db \
-    --db-instance-class db.t3.micro \
-    --engine postgres \
-    --engine-version 15 \
-    --master-username postgres \
-    --master-user-password "${DB_PASSWORD:?Set DB_PASSWORD in .env}" \
-    --allocated-storage 20 \
-    --no-publicly-accessible \
-    --backup-retention-period 0 \
-    --region $REGION \
-    --no-multi-az \
-    --storage-type gp3 || echo "RDS creation may already be in progress"
-  echo "Waiting for RDS to become available (~5-10 min)..."
-  aws rds wait db-instance-available --db-instance-identifier ${APP_NAME}-db --region $REGION
-fi
-RDS_ENDPOINT=$(aws rds describe-db-instances --db-instance-identifier ${APP_NAME}-db --region $REGION --query 'DBInstances[0].Endpoint.Address' --output text)
-echo "RDS Endpoint: $RDS_ENDPOINT"
-grep -q '^DATABASE_URL=' .env || echo "DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@${RDS_ENDPOINT}:5432/${APP_NAME}" >> .env
-grep -q '^DB_SSL=' .env || echo "DB_SSL=true" >> .env
+echo "ACTION REQUIRED: Create a free Neon database at https://neon.tech"
+echo "Then add to .env:"
+echo "  DATABASE_URL=<your-neon-connection-string>"
+echo "  DB_SSL=true"
+echo ""
+echo "Once DATABASE_URL is set in .env, re-run this script to continue."
+echo ""
 
-# 2. S3 Bucket (if needed)
+if ! grep -q '^DATABASE_URL=' .env 2>/dev/null || grep -q 'DATABASE_URL=$' .env 2>/dev/null; then
+  echo "ERROR: DATABASE_URL not set in .env. Add your Neon connection string first."
+  exit 1
+fi
+grep -q '^DB_SSL=' .env || echo "DB_SSL=true" >> .env
+echo "Database: using Neon (from DATABASE_URL in .env)"
+
+# S3 Bucket (if needed)
 echo ""
 echo "--- S3 Bucket ---"
 BUCKET="${APP_NAME}-storage-$(aws sts get-caller-identity --query Account --output text)"
@@ -447,14 +447,14 @@ else
   echo "S3 bucket created: $BUCKET"
 fi
 
-# 3. ECR Repository
+# ECR Repository
 echo ""
 echo "--- ECR Repository ---"
 aws ecr describe-repositories --repository-names $APP_NAME --region $REGION 2>/dev/null || \
   aws ecr create-repository --repository-name $APP_NAME --region $REGION
 echo "ECR repo ready: $APP_NAME"
 
-# 4. SES (if email needed)
+# SES (if email needed)
 echo ""
 echo "--- SES Sender Identity ---"
 SES_IDENTITY="${SES_IDENTITY:-${SENDER_EMAIL:-}}"
@@ -471,7 +471,191 @@ else
 fi
 
 echo ""
-echo "=== Pre-flight Complete ==="
+echo "=== Pre-flight Complete (personal tier) ==="
+echo "Deploy target: AWS App Runner (docker build → ECR → App Runner service)"
+```
+
+### AWS Preflight Template — Team tier (ECS Fargate + RDS private VPC)
+
+Use this when `deploymentTier` is `"team"`. Creates a full private VPC with RDS in a
+private subnet, only reachable from Fargate tasks via security group rules. ALB handles
+public HTTPS traffic.
+
+```bash
+#!/bin/bash
+# Pre-flight: provision AWS infrastructure (team tier — ECS Fargate + RDS private VPC)
+set -euo pipefail
+
+REGION="${AWS_REGION:-us-east-1}"
+APP_NAME="__APP_NAME__"
+
+echo "=== Pre-flight Infrastructure Setup (AWS — team tier) ==="
+echo "Region: $REGION"
+
+# 1. VPC and subnets
+echo ""
+echo "--- VPC ---"
+VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=${APP_NAME}-vpc" \
+  --query 'Vpcs[0].VpcId' --output text --region $REGION 2>/dev/null)
+if [ "$VPC_ID" = "None" ] || [ -z "$VPC_ID" ]; then
+  VPC_ID=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 --region $REGION \
+    --query 'Vpc.VpcId' --output text)
+  aws ec2 create-tags --resources $VPC_ID --tags "Key=Name,Value=${APP_NAME}-vpc" --region $REGION
+  aws ec2 modify-vpc-attribute --vpc-id $VPC_ID --enable-dns-hostnames --region $REGION
+  echo "VPC created: $VPC_ID"
+else
+  echo "VPC exists: $VPC_ID"
+fi
+
+# Public subnets (ALB)
+PUB_SUBNET_A=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.1.0/24 \
+  --availability-zone ${REGION}a --query 'Subnet.SubnetId' --output text --region $REGION 2>/dev/null || \
+  aws ec2 describe-subnets --filters "Name=tag:Name,Values=${APP_NAME}-pub-a" \
+  --query 'Subnets[0].SubnetId' --output text --region $REGION)
+aws ec2 create-tags --resources $PUB_SUBNET_A --tags "Key=Name,Value=${APP_NAME}-pub-a" --region $REGION 2>/dev/null || true
+
+PUB_SUBNET_B=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.2.0/24 \
+  --availability-zone ${REGION}b --query 'Subnet.SubnetId' --output text --region $REGION 2>/dev/null || \
+  aws ec2 describe-subnets --filters "Name=tag:Name,Values=${APP_NAME}-pub-b" \
+  --query 'Subnets[0].SubnetId' --output text --region $REGION)
+aws ec2 create-tags --resources $PUB_SUBNET_B --tags "Key=Name,Value=${APP_NAME}-pub-b" --region $REGION 2>/dev/null || true
+
+# Private subnets (Fargate + RDS)
+PRIV_SUBNET_A=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.11.0/24 \
+  --availability-zone ${REGION}a --query 'Subnet.SubnetId' --output text --region $REGION 2>/dev/null || \
+  aws ec2 describe-subnets --filters "Name=tag:Name,Values=${APP_NAME}-priv-a" \
+  --query 'Subnets[0].SubnetId' --output text --region $REGION)
+aws ec2 create-tags --resources $PRIV_SUBNET_A --tags "Key=Name,Value=${APP_NAME}-priv-a" --region $REGION 2>/dev/null || true
+
+PRIV_SUBNET_B=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.12.0/24 \
+  --availability-zone ${REGION}b --query 'Subnet.SubnetId' --output text --region $REGION 2>/dev/null || \
+  aws ec2 describe-subnets --filters "Name=tag:Name,Values=${APP_NAME}-priv-b" \
+  --query 'Subnets[0].SubnetId' --output text --region $REGION)
+aws ec2 create-tags --resources $PRIV_SUBNET_B --tags "Key=Name,Value=${APP_NAME}-priv-b" --region $REGION 2>/dev/null || true
+
+# Internet gateway for public subnets
+IGW_ID=$(aws ec2 describe-internet-gateways \
+  --filters "Name=attachment.vpc-id,Values=$VPC_ID" \
+  --query 'InternetGateways[0].InternetGatewayId' --output text --region $REGION)
+if [ "$IGW_ID" = "None" ] || [ -z "$IGW_ID" ]; then
+  IGW_ID=$(aws ec2 create-internet-gateway --region $REGION --query 'InternetGateway.InternetGatewayId' --output text)
+  aws ec2 attach-internet-gateway --internet-gateway-id $IGW_ID --vpc-id $VPC_ID --region $REGION
+fi
+PUB_RTB=$(aws ec2 create-route-table --vpc-id $VPC_ID --region $REGION --query 'RouteTable.RouteTableId' --output text 2>/dev/null || \
+  aws ec2 describe-route-tables --filters "Name=tag:Name,Values=${APP_NAME}-pub-rtb" \
+  --query 'RouteTables[0].RouteTableId' --output text --region $REGION)
+aws ec2 create-route --route-table-id $PUB_RTB --destination-cidr-block 0.0.0.0/0 --gateway-id $IGW_ID --region $REGION 2>/dev/null || true
+aws ec2 create-tags --resources $PUB_RTB --tags "Key=Name,Value=${APP_NAME}-pub-rtb" --region $REGION 2>/dev/null || true
+aws ec2 associate-route-table --route-table-id $PUB_RTB --subnet-id $PUB_SUBNET_A --region $REGION 2>/dev/null || true
+aws ec2 associate-route-table --route-table-id $PUB_RTB --subnet-id $PUB_SUBNET_B --region $REGION 2>/dev/null || true
+echo "VPC networking ready"
+
+# 2. Security groups
+echo ""
+echo "--- Security Groups ---"
+DB_SG=$(aws ec2 describe-security-groups \
+  --filters "Name=group-name,Values=${APP_NAME}-db-sg" "Name=vpc-id,Values=$VPC_ID" \
+  --query 'SecurityGroups[0].GroupId' --output text --region $REGION 2>/dev/null)
+if [ "$DB_SG" = "None" ] || [ -z "$DB_SG" ]; then
+  DB_SG=$(aws ec2 create-security-group --group-name "${APP_NAME}-db-sg" \
+    --description "RDS — allow Fargate tasks only" --vpc-id $VPC_ID \
+    --query 'GroupId' --output text --region $REGION)
+fi
+
+APP_SG=$(aws ec2 describe-security-groups \
+  --filters "Name=group-name,Values=${APP_NAME}-app-sg" "Name=vpc-id,Values=$VPC_ID" \
+  --query 'SecurityGroups[0].GroupId' --output text --region $REGION 2>/dev/null)
+if [ "$APP_SG" = "None" ] || [ -z "$APP_SG" ]; then
+  APP_SG=$(aws ec2 create-security-group --group-name "${APP_NAME}-app-sg" \
+    --description "Fargate tasks" --vpc-id $VPC_ID \
+    --query 'GroupId' --output text --region $REGION)
+  aws ec2 authorize-security-group-ingress --group-id $APP_SG \
+    --protocol tcp --port 3015 --source-group $APP_SG --region $REGION 2>/dev/null || true
+fi
+
+# Allow Fargate → RDS only
+aws ec2 authorize-security-group-ingress --group-id $DB_SG \
+  --protocol tcp --port 5432 --source-group $APP_SG --region $REGION 2>/dev/null || true
+echo "Security groups ready: DB=$DB_SG APP=$APP_SG"
+
+# 3. RDS Postgres (private subnet)
+echo ""
+echo "--- RDS Postgres (private) ---"
+DB_SUBNET_GROUP="${APP_NAME}-db-subnet"
+aws rds create-db-subnet-group \
+  --db-subnet-group-name $DB_SUBNET_GROUP \
+  --db-subnet-group-description "Private subnets for ${APP_NAME} RDS" \
+  --subnet-ids $PRIV_SUBNET_A $PRIV_SUBNET_B \
+  --region $REGION 2>/dev/null || true
+
+if aws rds describe-db-instances --db-instance-identifier ${APP_NAME}-db --region $REGION 2>/dev/null | grep -q "available"; then
+  echo "RDS instance already exists."
+else
+  aws rds create-db-instance \
+    --db-instance-identifier ${APP_NAME}-db \
+    --db-instance-class db.t3.micro \
+    --engine postgres \
+    --engine-version 15 \
+    --master-username postgres \
+    --master-user-password "${DB_PASSWORD:?Set DB_PASSWORD in .env}" \
+    --allocated-storage 20 \
+    --no-publicly-accessible \
+    --db-subnet-group-name $DB_SUBNET_GROUP \
+    --vpc-security-group-ids $DB_SG \
+    --backup-retention-period 7 \
+    --region $REGION \
+    --no-multi-az \
+    --storage-type gp3
+  echo "Waiting for RDS (~5-10 min)..."
+  aws rds wait db-instance-available --db-instance-identifier ${APP_NAME}-db --region $REGION
+fi
+RDS_ENDPOINT=$(aws rds describe-db-instances --db-instance-identifier ${APP_NAME}-db \
+  --region $REGION --query 'DBInstances[0].Endpoint.Address' --output text)
+echo "RDS Endpoint (private): $RDS_ENDPOINT"
+grep -q '^DATABASE_URL=' .env || echo "DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@${RDS_ENDPOINT}:5432/${APP_NAME}" >> .env
+grep -q '^DB_SSL=' .env || echo "DB_SSL=true" >> .env
+
+# 4. ECR Repository
+echo ""
+echo "--- ECR Repository ---"
+aws ecr describe-repositories --repository-names $APP_NAME --region $REGION 2>/dev/null || \
+  aws ecr create-repository --repository-name $APP_NAME --region $REGION
+echo "ECR repo ready: $APP_NAME"
+
+# 5. ECS Cluster
+echo ""
+echo "--- ECS Cluster ---"
+aws ecs describe-clusters --clusters ${APP_NAME}-cluster --region $REGION \
+  --query 'clusters[?status==`ACTIVE`].clusterName' --output text | grep -q $APP_NAME || \
+  aws ecs create-cluster --cluster-name ${APP_NAME}-cluster --region $REGION
+echo "ECS cluster ready: ${APP_NAME}-cluster"
+
+# 6. SES (if email needed)
+echo ""
+echo "--- SES Sender Identity ---"
+SES_IDENTITY="${SES_IDENTITY:-${SENDER_EMAIL:-}}"
+if [ -n "$SES_IDENTITY" ]; then
+  if aws sesv2 get-email-identity --email-identity "$SES_IDENTITY" --region $REGION >/dev/null 2>&1; then
+    STATUS=$(aws sesv2 get-email-identity --email-identity "$SES_IDENTITY" --region $REGION --query 'VerificationStatus' --output text)
+    echo "Using existing SES identity: $SES_IDENTITY ($STATUS)"
+  else
+    aws sesv2 create-email-identity --email-identity "$SES_IDENTITY" --region $REGION 2>/dev/null || true
+    echo "Created SES identity: $SES_IDENTITY"
+  fi
+else
+  echo "No SES_IDENTITY set — skipping email setup."
+fi
+
+echo ""
+echo "=== Pre-flight Complete (team tier) ==="
+echo "VPC: $VPC_ID | App SG: $APP_SG | DB SG: $DB_SG"
+echo "Private subnets: $PRIV_SUBNET_A, $PRIV_SUBNET_B"
+echo "Deploy target: ECS Fargate + ALB (docker build → ECR → ECS service)"
+echo "Note: store PRIV_SUBNET_A, PRIV_SUBNET_B, APP_SG in .env for the deploy step."
+grep -q '^PRIV_SUBNET_A=' .env || echo "PRIV_SUBNET_A=$PRIV_SUBNET_A" >> .env
+grep -q '^PRIV_SUBNET_B=' .env || echo "PRIV_SUBNET_B=$PRIV_SUBNET_B" >> .env
+grep -q '^APP_SG=' .env || echo "APP_SG=$APP_SG" >> .env
+grep -q '^VPC_ID=' .env || echo "VPC_ID=$VPC_ID" >> .env
 ```
 
 ### GCP Preflight Template (scripts/preflight.sh)
