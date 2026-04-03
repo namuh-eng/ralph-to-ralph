@@ -230,34 +230,32 @@ Regenerate for the chosen cloud provider using the templates below.
 
 ### 7c: package.json
 - Remove product-specific cloud SDK dependencies (e.g., `@aws-sdk/*` if switching away from AWS)
-- Add the correct cloud SDK dependencies for the chosen provider
 - Update the `name` field to the clone name
 - Keep all other dependencies unchanged (Next.js, Radix, Drizzle, etc.)
+- **Do NOT hardcode version numbers.** Use `npm install <package>@latest` to always get the current version.
 
-**Dependencies per cloud provider:**
+**Install cloud SDK dependencies using npm (always @latest):**
 
-AWS:
-```json
-"@aws-sdk/client-s3": "^3.1019.0",
-"@aws-sdk/client-sesv2": "^3.1019.0",
-"@aws-sdk/s3-request-presigner": "^3.1019.0"
+AWS (only install what the clone needs):
+```bash
+npm install @aws-sdk/client-s3@latest          # if storage needed
+npm install @aws-sdk/client-sesv2@latest        # if email needed
+npm install @aws-sdk/s3-request-presigner@latest # if presigned URLs needed
 ```
-(Only include the SDKs for services the clone actually needs.)
 
-GCP:
-```json
-"@google-cloud/storage": "^7.0.0",
-"@google-cloud/sql": "^1.0.0",
-"@sendgrid/mail": "^8.0.0"
+GCP (only install what the clone needs):
+```bash
+npm install @google-cloud/storage@latest   # if storage needed
+npm install @sendgrid/mail@latest          # if email needed
 ```
-(Only include the SDKs for services the clone actually needs.)
 
-Azure:
-```json
-"@azure/storage-blob": "^12.0.0",
-"@azure/communication-email": "^1.0.0"
+Azure (only install what the clone needs):
+```bash
+npm install @azure/storage-blob@latest          # if storage needed
+npm install @azure/communication-email@latest   # if email needed
 ```
-(Only include the SDKs for services the clone actually needs.)
+
+**Important:** Always use `@latest` instead of pinning versions. This ensures users get the most current, secure SDK regardless of when the template was cloned. Only install the packages for services the clone actually needs.
 
 ### 7d: pre-setup.md
 Regenerate the "AWS Infrastructure" section to match the chosen cloud provider. Keep all other sections (Tooling, Commands, Project Structure, Port) unchanged.
