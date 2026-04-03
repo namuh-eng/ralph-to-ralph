@@ -34,7 +34,7 @@ For the clone:
 ### Phase A: Docs Extraction (FAST — bulk download, no UI testing)
 Before touching the UI, extract ALL available documentation. Docs tell you what the product does. UI tells you how it looks. This phase should be FAST — no clicking around.
 
-**Goal:** Download every docs page into `clone-product-docs/` directory, organized to match the original docs structure.
+**Goal:** Download every docs page into `target-docs/` directory, organized to match the original docs structure.
 
 **Steps — try in this order (fastest first):**
 
@@ -44,13 +44,13 @@ curl -s <site-url>/llms.txt          # Index with all doc URLs
 curl -s <site-url>/llms-full.txt     # Full docs in one file (if available)
 curl -s <site-url>/docs/llms.txt     # Some sites put it under /docs/
 ```
-If `llms-full.txt` exists → save it as `clone-product-docs/full-docs.md` and you're done.
+If `llms-full.txt` exists → save it as `target-docs/full-docs.md` and you're done.
 If only the index exists → parse the URLs and fetch each page.
 
 **Method 2: Jina Reader (fast, no install, handles JS)**
 For each docs URL, prepend `r.jina.ai/`:
 ```bash
-curl -s "https://r.jina.ai/<docs-page-url>" > clone-product-docs/<page-name>.md
+curl -s "https://r.jina.ai/<docs-page-url>" > target-docs/<page-name>.md
 ```
 This returns clean markdown. No browser needed. Can be parallelized with `&` in bash.
 
@@ -68,7 +68,7 @@ ever navigate <docs-url> && ever extract
 
 **Directory structure** — mirror the original docs hierarchy:
 ```
-clone-product-docs/
+target-docs/
 ├── INDEX.md              # List of all pages with one-line descriptions
 ├── overview.md
 ├── api-reference/
@@ -82,7 +82,7 @@ clone-product-docs/
 └── changelog.md
 ```
 
-**Create `clone-product-docs/INDEX.md`** listing all extracted pages with one-line descriptions.
+**Create `target-docs/INDEX.md`** listing all extracted pages with one-line descriptions.
 
 **Commit the docs extraction.**
 

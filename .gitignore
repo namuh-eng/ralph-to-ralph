@@ -10,7 +10,7 @@ test-results/
 playwright-report/
 drizzle/
 packages/sdk/dist/
-clone-product-docs/
+target-docs/
 .current-feature.json
 tsconfig.tsbuildinfo
 ralph-config.json

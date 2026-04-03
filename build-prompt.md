@@ -9,7 +9,7 @@ You are an AI product builder. Your job is to build a working clone of a real pr
 - `CLAUDE.md`: Tech stack, commands, and quality standards.
 - `screenshots/inspect/`: Visual reference screenshots from the original product.
 - `screenshots/build/`: Your own verification screenshots (save yours here).
-- `clone-product-docs/`: Extracted docs — API reference, guides, SDK examples.
+- `target-docs/`: Extracted docs — API reference, guides, SDK examples.
 
 ## This Iteration
 
@@ -72,14 +72,14 @@ Cloud Services:
 ```
 
 ### Implementation Rules
-- **REST API**: Mirror the target product's API surface. Read `clone-product-docs/` for specs.
+- **REST API**: Mirror the target product's API surface. Read `target-docs/` for specs.
 - **AWS SES**: For email sending (`@aws-sdk/client-sesv2`). SES is in production mode.
 - **RDS Postgres**: `pg` + `drizzle-orm`. Run `make db-push` for schema changes.
 - **Domain verification**: SES `CreateEmailIdentity` + Cloudflare API for auto-adding DNS records. Show records table + "Auto configure" button.
 - **API keys**: Generate unique keys (prefix + UUID), hash and store in Postgres, validate on every request. Same keys unlock both API and dashboard.
 - **Webhooks**: POST to registered URLs when events occur.
 - **Logs**: Store every API request in Postgres.
-- **SDK**: If the target offers an SDK (check `clone-product-docs/`), build one in `packages/sdk/` — TypeScript, wraps the REST API. If it supports React rendering, implement via `renderToStaticMarkup()`.
+- **SDK**: If the target offers an SDK (check `target-docs/`), build one in `packages/sdk/` — TypeScript, wraps the REST API. If it supports React rendering, implement via `renderToStaticMarkup()`.
 - **API docs**: Always add a `/docs` page with all endpoints, schemas, and examples.
 
 ### Credentials

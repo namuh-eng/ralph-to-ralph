@@ -228,34 +228,74 @@ import {
 ### 7b: scripts/preflight.sh
 Regenerate for the chosen cloud provider using the templates below.
 
-### 7c: package.json
-- Remove product-specific cloud SDK dependencies (e.g., `@aws-sdk/*` if switching away from AWS)
-- Update the `name` field to the clone name
-- Keep all other dependencies unchanged (Next.js, Radix, Drizzle, etc.)
-- **Do NOT hardcode version numbers.** Use `npm install <package>@latest` to always get the current version.
+### 7c: Initialize framework with official CLI (Next.js)
 
-**Install cloud SDK dependencies using npm (always @latest):**
+**Use the official CLI tool** to initialize the framework — do NOT manually edit package.json for framework versions.
 
-AWS (only install what the clone needs):
+If framework is `nextjs`:
 ```bash
-npm install @aws-sdk/client-s3@latest          # if storage needed
-npm install @aws-sdk/client-sesv2@latest        # if email needed
-npm install @aws-sdk/s3-request-presigner@latest # if presigned URLs needed
+# Create a temporary Next.js scaffold to get latest versions
+npx create-next-app@latest .tmp-nextjs-scaffold --ts --tailwind --app --src-dir --import-alias "@/*" --use-npm --yes
+
+# Extract the latest Next.js/React versions from the scaffold
+node -e "const p=require('./.tmp-nextjs-scaffold/package.json'); console.log(JSON.stringify({next:p.dependencies.next,react:p.dependencies.react,'react-dom':p.dependencies['react-dom']}))" > .tmp-versions.json
+
+# Clean up the scaffold
+rm -rf .tmp-nextjs-scaffold
 ```
 
-GCP (only install what the clone needs):
+Then update `package.json`:
+- Update `name` field to the clone name
+- Update `next`, `react`, and `react-dom` versions from `.tmp-versions.json`
+- Remove `.tmp-versions.json` after use
+- **Do NOT manually set framework version numbers** — always derive from the official CLI scaffold
+
+### 7c-2: Install cloud SDK dependencies
+
+**Before installing anything, check what's already in package.json.** The template ships with AWS SDK packages pre-installed. Only install packages that are NOT already present.
+
+```bash
+# Check what's already installed before adding
+node -e "const p=require('./package.json'); console.log(Object.keys({...p.dependencies,...p.devDependencies}).join('\n'))" > .tmp-existing-deps.txt
+```
+
+**Rules:**
+1. If the user chose AWS and `@aws-sdk/*` packages are already in package.json — do NOT re-install them
+2. If the user chose a DIFFERENT provider (GCP/Azure) — remove the AWS SDK packages first, then install the new provider's packages
+3. Only install packages for services the clone actually needs (determined by Step 3d)
+4. Always use `@latest` — never hardcode version numbers
+
+**Remove packages for non-chosen providers:**
+```bash
+# If switching AWAY from AWS:
+npm uninstall @aws-sdk/client-s3 @aws-sdk/client-sesv2 @aws-sdk/client-sns @aws-sdk/s3-request-presigner 2>/dev/null || true
+```
+
+**Install only MISSING packages for the chosen provider:**
+
+AWS (skip if already in package.json):
+```bash
+npm install @aws-sdk/client-s3@latest          # if storage needed AND not already installed
+npm install @aws-sdk/client-sesv2@latest        # if email needed AND not already installed
+npm install @aws-sdk/s3-request-presigner@latest # if presigned URLs needed AND not already installed
+```
+
+GCP:
 ```bash
 npm install @google-cloud/storage@latest   # if storage needed
 npm install @sendgrid/mail@latest          # if email needed
 ```
 
-Azure (only install what the clone needs):
+Azure:
 ```bash
 npm install @azure/storage-blob@latest          # if storage needed
 npm install @azure/communication-email@latest   # if email needed
 ```
 
-**Important:** Always use `@latest` instead of pinning versions. This ensures users get the most current, secure SDK regardless of when the template was cloned. Only install the packages for services the clone actually needs.
+Clean up:
+```bash
+rm -f .tmp-existing-deps.txt
+```
 
 ### 7d: pre-setup.md
 Regenerate the "AWS Infrastructure" section to match the chosen cloud provider. Keep all other sections (Tooling, Commands, Project Structure, Port) unchanged.

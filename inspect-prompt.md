@@ -17,16 +17,32 @@ This is a **generic product cloning system** — the target could be any SaaS st
 3. Run `ever snapshot` to see the current page state.
 4. Follow the inspection strategy for your current iteration:
 
-### Phase A: Read ALL docs first (if nothing inspected yet)
-- Fetch and save all available documentation to `clone-product-docs/`
-- **Capture the Developer Experience (DX)** — this is just as important as the UI:
+### Phase A: Scrape ALL docs first (if nothing inspected yet)
+
+**This is the most important phase.** Incomplete docs = incomplete clone. The current approach only captures a fraction of available docs. Follow `inspect-spec.md` Phase A strictly — it has the full scraping strategy.
+
+**Save all documentation to `target-docs/`** (NOT `clone-product-docs/`).
+
+**Scraping priority (fastest → slowest):**
+1. **llms.txt** — Fetch `{targetUrl}/llms.txt` or `{targetUrl}/docs/llms.txt`. Parse it as a list of doc URLs. Fetch EVERY linked URL using Jina Reader (`curl -s "https://r.jina.ai/<url>"`). If `llms-full.txt` exists, save it as `target-docs/full-docs.md`.
+2. **sitemap.xml** — Fetch `{targetUrl}/sitemap.xml`. Filter for `/docs/` URLs. Fetch each via Jina Reader.
+3. **Manual crawl** — Only if methods 1-2 both fail.
+
+**File naming — use descriptive names matching the doc path:**
+- `{targetUrl}/docs/api-reference/emails/send` → `target-docs/api-reference/emails/send.md`
+- `{targetUrl}/docs/guides/webhooks` → `target-docs/guides/webhooks.md`
+- Each file MUST include a `<!-- Source: {original-url} -->` comment at the top for reference
+
+**Create `target-docs/INDEX.md`** listing every scraped page with a one-line description.
+
+**Capture the Developer Experience (DX)** — this is just as important as the UI:
   - **SDKs / client libraries**: Does the target offer an npm/pip/gem package? What languages? What's the full API surface? (e.g., `client.emails.send({react: <Component/>})`)
   - **React/template rendering**: Does the API accept React components, templates, or markup that gets rendered server-side?
   - **CLI tools**: Does the target have a CLI?
   - **Code examples**: What does the "getting started" flow look like for a developer?
   - **Webhooks / event model**: How do developers consume events?
 - Include SDK/DX features as PRD entries with category `"sdk"` or `"developer-experience"`.
-- Save to `docs-extract.md`
+- Save DX summary to `docs-extract.md`
 
 ### Iteration 1: Map the site (if docs done but no site map)
 - Navigate all pages, map the complete site structure

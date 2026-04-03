@@ -19,7 +19,7 @@ The original product is your **source of truth**.
 - `ever-cli-reference.md`: Ever CLI command reference.
 - `screenshots/inspect/`: Reference screenshots from the original.
 - `screenshots/qa/`: Save your QA screenshots here.
-- `clone-product-docs/`: Extracted docs for verifying API correctness.
+- `target-docs/`: Extracted docs for verifying API correctness.
 
 ## This Iteration
 
