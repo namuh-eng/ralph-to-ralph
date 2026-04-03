@@ -137,12 +137,21 @@ case "${CLOUD_CHOICE:-1}" in
 esac
 
 echo ""
+read -rp "Deploy to production after build? [Y/n]: " DEPLOY_CHOICE
+if [[ "${DEPLOY_CHOICE:-y}" =~ ^[Nn] ]]; then
+  SKIP_DEPLOY="true"
+else
+  SKIP_DEPLOY="false"
+fi
+
+echo ""
 echo "--- Summary ---"
 echo "Target:    $TARGET_URL"
 echo "Clone:     $CLONE_NAME"
 echo "Cloud:     $CLOUD_PROVIDER"
 echo "Framework: Next.js 16 (default)"
 echo "Database:  Postgres (default)"
+echo "Deploy:    $([ "$SKIP_DEPLOY" = "true" ] && echo "No (build locally only)" || echo "Yes (Docker → cloud)")"
 echo ""
 read -rp "Proceed? [Y/n]: " CONFIRM
 if [[ "${CONFIRM:-y}" =~ ^[Nn] ]]; then
@@ -165,6 +174,7 @@ The user has already provided their answers:
 - Cloud provider: $CLOUD_PROVIDER
 - Framework: nextjs (default)
 - Database: postgres (default)
+- Skip deployment: $SKIP_DEPLOY (if true, do NOT set up container registry, Docker, or deployment infrastructure. Only provision database and services needed for local development.)
 
 SKIP Steps 1 and 2 (already answered above). Start directly from Step 3 (Technical Architecture Scan).
 Research the target product, generate ralph-config.json, check dependencies, rewrite config files, and install packages.

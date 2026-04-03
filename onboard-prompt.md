@@ -116,6 +116,7 @@ Write the file `ralph-config.json` with this exact schema:
   "cloudProvider": "aws",
   "framework": "nextjs",
   "database": "postgres",
+  "skipDeploy": false,
   "services": {
     "email": { "provider": "ses", "package": "@aws-sdk/client-sesv2" },
     "storage": { "provider": "s3", "package": "@aws-sdk/client-s3" },
@@ -138,6 +139,12 @@ Write the file `ralph-config.json` with this exact schema:
 **Valid cloudProvider values:** `aws`, `gcp`, `azure`.
 
 Only include services the clone actually needs in the `services` object.
+
+If `skipDeploy` is `true`:
+- Do NOT include `containerRegistry` in services
+- Do NOT set up Docker or deployment infrastructure in the preflight script
+- The preflight script should only provision database and application services (email, storage, etc.)
+- Docker is not required as a prerequisite
 
 ---
 
@@ -185,11 +192,12 @@ If `az` not found:
 > Install: `brew install azure-cli` (macOS) or see https://learn.microsoft.com/en-us/cli/azure/install-azure-cli
 > Then run: `az login`
 
-### Docker (check if Dockerfile exists)
+### Docker (only if skipDeploy is false)
 ```bash
-docker --version    # Only if deployment needed
-docker info         # Only if deployment needed
+docker --version    # Only if skipDeploy is false
+docker info         # Only if skipDeploy is false
 ```
+Skip these checks entirely if `skipDeploy` is `true`.
 
 **If any required check fails:**
 Output a clear error listing ALL missing dependencies at once (don't stop at the first one), then output `<promise>ONBOARD_FAILED</promise>` and stop.
