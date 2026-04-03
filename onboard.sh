@@ -8,18 +8,71 @@ echo "=== RALPH-TO-RALPH: Onboarding ==="
 echo "This will prepare the project for cloning a specific product."
 echo ""
 
-# Run Claude onboarding session
+# ── Step 1: Collect user input interactively (bash handles Q&A) ──
+# claude -p runs in pipe mode (no back-and-forth), so we collect answers
+# here and pass them to Claude as context.
+
+read -rp "What product do you want to clone? (URL): " TARGET_URL
+if [ -z "$TARGET_URL" ]; then
+  echo "ERROR: Target URL is required."
+  exit 1
+fi
+
+# Suggest a clone name from the URL
+SUGGESTED_NAME=$(echo "$TARGET_URL" | sed 's|https\?://||;s|www\.||;s|\.com.*||;s|\.io.*||;s|\.dev.*||;s|\.app.*||')
+read -rp "What should we call the clone? [$SUGGESTED_NAME-clone]: " CLONE_NAME
+CLONE_NAME="${CLONE_NAME:-${SUGGESTED_NAME}-clone}"
+
+echo ""
+echo "Cloud provider options:"
+echo "  1) AWS  (stable — recommended)"
+echo "  2) GCP  (experimental)"
+echo "  3) Azure (experimental)"
+read -rp "Choose cloud provider [1]: " CLOUD_CHOICE
+case "${CLOUD_CHOICE:-1}" in
+  1|aws)   CLOUD_PROVIDER="aws" ;;
+  2|gcp)   CLOUD_PROVIDER="gcp" ;;
+  3|azure) CLOUD_PROVIDER="azure" ;;
+  *)       echo "Invalid choice. Using AWS."; CLOUD_PROVIDER="aws" ;;
+esac
+
+echo ""
+echo "--- Summary ---"
+echo "Target:    $TARGET_URL"
+echo "Clone:     $CLONE_NAME"
+echo "Cloud:     $CLOUD_PROVIDER"
+echo "Framework: Next.js 16 (default)"
+echo "Database:  Postgres (default)"
+echo ""
+read -rp "Proceed? [Y/n]: " CONFIRM
+if [[ "${CONFIRM:-y}" =~ ^[Nn] ]]; then
+  echo "Aborted."
+  exit 0
+fi
+
+echo ""
+echo "--- Researching target and configuring project... ---"
+echo ""
+
+# ── Step 2: Claude handles research + config generation (no Q&A needed) ──
 result=$(timeout 1800 claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
 "@onboard-prompt.md @pre-setup.md @CLAUDE.md
 
-Run the complete onboarding flow. Ask the user what to clone, research the target,
-configure the stack, check dependencies, and prepare all config files.
+The user has already provided their answers:
+- Target URL: $TARGET_URL
+- Clone name: $CLONE_NAME
+- Cloud provider: $CLOUD_PROVIDER
+- Framework: nextjs (default)
+- Database: postgres (default)
+
+SKIP Steps 1 and 2 (already answered above). Start directly from Step 3 (Technical Architecture Scan).
+Research the target product, generate ralph-config.json, check dependencies, rewrite config files, and install packages.
 Output <promise>ONBOARD_COMPLETE</promise> when done.
 Output <promise>ONBOARD_FAILED</promise> if any check fails.")
 
 echo "$result"
 
-# Validate outputs
+# ── Step 3: Validate outputs ──
 if [[ "$result" == *"<promise>ONBOARD_COMPLETE</promise>"* ]]; then
   # Verify ralph-config.json exists and has required fields
   if [ ! -f "ralph-config.json" ]; then
@@ -41,7 +94,6 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure'):
     sys.exit(1)
 " || exit 1
 
-  TARGET_URL=$(python3 -c "import json; print(json.load(open('ralph-config.json'))['targetUrl'])")
   echo ""
   echo "=== Onboarding complete ==="
   echo "Target: $TARGET_URL"
