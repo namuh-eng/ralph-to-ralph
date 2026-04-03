@@ -7,6 +7,8 @@ cd "$(dirname "$0")"
 TARGET_URL="${1:?Usage: $0 <target-url> [iterations]}"
 ITERATIONS="${2:-999}"
 
+[ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./onboard.sh first."; exit 1; }
+
 echo "=== RALPH-TO-RALPH: Phase 1 (Inspect) ==="
 echo "Target: $TARGET_URL"
 echo "Iterations: $ITERATIONS"

@@ -32,7 +32,7 @@ describe("drizzle.config.ts SSL configuration", () => {
 
   it("does not append sslmode when DB_SSL is unset", async () => {
     vi.stubEnv("DATABASE_URL", "postgresql://localhost:5432/test");
-    process.env.DB_SSL = undefined;
+    delete process.env.DB_SSL;
 
     const mod = await import("../drizzle.config");
 

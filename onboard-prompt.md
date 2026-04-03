@@ -38,6 +38,17 @@ The bash wrapper has already collected:
 
 These values are provided in your prompt context. Use them directly — do NOT ask the user again.
 
+> **TODO (auth):** Currently the clone's API and dashboard are protected only by a
+> static `DASHBOARD_KEY` env var (simple string comparison). This is fine for local
+> dev and private deployments, but has real weaknesses: no timing-safe comparison,
+> no token rotation, no per-user access control. A future onboarding step should ask
+> the user to choose an auth strategy:
+>   1. **API key only** (current default — simple, no extra setup)
+>   2. **OAuth** (Google / GitHub — proper session auth, requires an OAuth app)
+>   3. **None** (fully open — only appropriate for local-only use)
+> Until this is implemented, instruct the user to set a strong random `DASHBOARD_KEY`
+> and keep it out of version control.
+
 ---
 
 ## Step 3: Technical Architecture Scan
@@ -409,7 +420,7 @@ else
     --master-username postgres \
     --master-user-password "${DB_PASSWORD:?Set DB_PASSWORD in .env}" \
     --allocated-storage 20 \
-    --publicly-accessible \
+    --no-publicly-accessible \
     --backup-retention-period 0 \
     --region $REGION \
     --no-multi-az \
@@ -419,8 +430,8 @@ else
 fi
 RDS_ENDPOINT=$(aws rds describe-db-instances --db-instance-identifier ${APP_NAME}-db --region $REGION --query 'DBInstances[0].Endpoint.Address' --output text)
 echo "RDS Endpoint: $RDS_ENDPOINT"
-echo "DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@${RDS_ENDPOINT}:5432/${APP_NAME}" >> .env
-echo "DB_SSL=true" >> .env
+grep -q '^DATABASE_URL=' .env || echo "DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@${RDS_ENDPOINT}:5432/${APP_NAME}" >> .env
+grep -q '^DB_SSL=' .env || echo "DB_SSL=true" >> .env
 
 # 2. S3 Bucket (if needed)
 echo ""
@@ -494,8 +505,8 @@ else
 fi
 SQL_IP=$(gcloud sql instances describe ${APP_NAME}-db --project=$PROJECT --format='value(ipAddresses[0].ipAddress)')
 echo "Cloud SQL IP: $SQL_IP"
-echo "DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@${SQL_IP}:5432/${APP_NAME}" >> .env
-echo "DB_SSL=true" >> .env
+grep -q '^DATABASE_URL=' .env || echo "DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@${SQL_IP}:5432/${APP_NAME}" >> .env
+grep -q '^DB_SSL=' .env || echo "DB_SSL=true" >> .env
 
 # 2. Cloud Storage (if needed)
 echo ""
@@ -550,7 +561,7 @@ else
     --sku-name Standard_B1ms \
     --tier Burstable \
     --version 15 \
-    --public-access 0.0.0.0
+    --public-access "$(curl -sf https://checkip.amazonaws.com || curl -sf https://api.ipify.org || echo '0.0.0.0')"
   az postgres flexible-server db create \
     --server-name ${APP_NAME}-db \
     --resource-group $RESOURCE_GROUP \
@@ -558,8 +569,8 @@ else
 fi
 PG_FQDN=$(az postgres flexible-server show --name ${APP_NAME}-db --resource-group $RESOURCE_GROUP --query fullyQualifiedDomainName --output tsv)
 echo "PostgreSQL FQDN: $PG_FQDN"
-echo "DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@${PG_FQDN}:5432/${APP_NAME}" >> .env
-echo "DB_SSL=true" >> .env
+grep -q '^DATABASE_URL=' .env || echo "DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@${PG_FQDN}:5432/${APP_NAME}" >> .env
+grep -q '^DB_SSL=' .env || echo "DB_SSL=true" >> .env
 
 # 2. Blob Storage (if needed)
 echo ""

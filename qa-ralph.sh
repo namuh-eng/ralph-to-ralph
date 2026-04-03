@@ -7,6 +7,8 @@ cd "$(dirname "$0")"
 TARGET_URL="${1:-}"
 ITERATIONS="${2:-999}"
 
+[ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./onboard.sh first."; exit 1; }
+
 if [ ! -f "prd.json" ]; then
   echo "Error: prd.json not found. Run build-ralph.sh first."
   exit 1

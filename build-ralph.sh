@@ -6,6 +6,8 @@ cd "$(dirname "$0")"
 
 ITERATIONS="${1:-999}"
 
+[ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./onboard.sh first."; exit 1; }
+
 if [ ! -f "prd.json" ]; then
   echo "Error: prd.json not found. Run inspect-ralph.sh first."
   exit 1

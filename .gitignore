@@ -14,3 +14,13 @@ target-docs/
 .current-feature.json
 tsconfig.tsbuildinfo
 ralph-config.json
+
+# Runtime state — generated during execution, not source files
+*.lock
+build-progress.txt
+inspect-progress.txt
+qa-hints.json
+qa-report.json
+test-a.txt
+test-b.txt
+test.txt

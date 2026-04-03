@@ -43,7 +43,7 @@ describe("db/index.ts SSL configuration", () => {
 
   it("disables SSL when DB_SSL is unset", async () => {
     vi.stubEnv("DATABASE_URL", "postgresql://localhost:5432/test");
-    process.env.DB_SSL = undefined;
+    delete process.env.DB_SSL;
 
     const { Pool } = await import("pg");
     await import("@/lib/db/index");
@@ -74,7 +74,7 @@ describe("db/index.ts SSL configuration", () => {
       "DATABASE_URL",
       "postgresql://user:pass@mydb.amazonaws.com:5432/db",
     );
-    process.env.DB_SSL = undefined;
+    delete process.env.DB_SSL;
 
     const { Pool } = await import("pg");
     await import("@/lib/db/index");
