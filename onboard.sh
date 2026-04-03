@@ -18,8 +18,8 @@ if [ -z "$TARGET_URL" ]; then
   exit 1
 fi
 
-# Suggest a clone name from the URL
-SUGGESTED_NAME=$(echo "$TARGET_URL" | sed 's|https\?://||;s|www\.||;s|\.com.*||;s|\.io.*||;s|\.dev.*||;s|\.app.*||')
+# Suggest a clone name from the URL (use -E for macOS BSD sed compatibility)
+SUGGESTED_NAME=$(echo "$TARGET_URL" | sed -E 's|https?://||;s|www\.||;s|\.[a-z]{2,}.*||')
 read -rp "What should we call the clone? [$SUGGESTED_NAME-clone]: " CLONE_NAME
 CLONE_NAME="${CLONE_NAME:-${SUGGESTED_NAME}-clone}"
 
