@@ -56,6 +56,30 @@ if [[ "${1:-}" == "--reset" ]]; then
   exit 0
 fi
 
+# ── Preflight: check required tools ──
+missing_tools=()
+if ! command -v claude &>/dev/null; then
+  missing_tools+=("claude (Claude Code CLI — install from https://docs.anthropic.com/en/docs/claude-code)")
+fi
+if ! command -v python3 &>/dev/null; then
+  missing_tools+=("python3 (required for config validation)")
+fi
+if ! command -v node &>/dev/null; then
+  missing_tools+=("node (Node.js 20+ — https://nodejs.org)")
+fi
+if [ ${#missing_tools[@]} -gt 0 ]; then
+  echo "ERROR: Missing required tools:"
+  for t in "${missing_tools[@]}"; do
+    echo "  - $t"
+  done
+  exit 1
+fi
+
+# macOS does not ship GNU timeout — provide a portable fallback
+if ! command -v timeout &>/dev/null; then
+  timeout() { perl -e 'alarm shift; exec @ARGV' "$@"; }
+fi
+
 echo "=== RALPH-TO-RALPH: Onboarding ==="
 echo "This will prepare the project for cloning a specific product."
 echo ""
@@ -92,8 +116,14 @@ print('Config is valid.')
       echo "=== Resuming with existing config ==="
       echo "Target: $TARGET_URL"
       echo ""
-      echo "Starting the build loop..."
-      ./scripts/start.sh "$TARGET_URL"
+      if ! command -v ever &>/dev/null; then
+        echo "Next step: install Ever CLI (needed for the Inspect phase)."
+        echo "  Install: https://foreverbrowsing.com"
+        echo "  Then start the loop: ./scripts/start.sh \"$TARGET_URL\""
+      else
+        echo "Starting the build loop..."
+        ./scripts/start.sh "$TARGET_URL"
+      fi
       exit 0
       ;;
     2)
@@ -126,8 +156,10 @@ if [[ "$TARGET_URL" == *"<promise>"* ]] || [[ "$TARGET_URL" == *"</promise>"* ]]
   exit 1
 fi
 
-# Suggest a clone name from the URL (use -E for macOS BSD sed compatibility)
-SUGGESTED_NAME=$(echo "$TARGET_URL" | sed -E 's|https?://||;s|www\.||;s|\.[a-z]{2,}.*||')
+# Suggest a clone name from the URL
+# Strips protocol, www, path, port, then extracts the brand name (second-to-last domain segment)
+# e.g. app.posthog.com → posthog, docs.stripe.com/api → stripe, resend.com → resend
+SUGGESTED_NAME=$(echo "$TARGET_URL" | sed -E 's|https?://||;s|www\.||;s|/.*||;s|:[0-9]+||' | awk -F. '{if(NF>=2) print $(NF-1); else print $1}')
 read -rp "What should we call the clone? [$SUGGESTED_NAME-clone]: " CLONE_NAME
 CLONE_NAME="${CLONE_NAME:-${SUGGESTED_NAME}-clone}"
 if [[ "$CLONE_NAME" == *"<promise>"* ]] || [[ "$CLONE_NAME" == *"</promise>"* ]]; then
@@ -150,6 +182,37 @@ case "${CLOUD_CHOICE:-1}" in
   2|gcp)   CLOUD_PROVIDER="gcp" ;;
   3|azure) CLOUD_PROVIDER="azure" ;;
   *)       echo "Invalid choice. Using AWS."; CLOUD_PROVIDER="aws" ;;
+esac
+
+# ── Verify cloud CLI is installed before the long research step ──
+case "$CLOUD_PROVIDER" in
+  aws)
+    if ! command -v aws &>/dev/null; then
+      echo ""
+      echo "ERROR: AWS CLI is not installed."
+      echo "  Install: brew install awscli"
+      echo "  Then:    aws configure"
+      exit 1
+    fi
+    ;;
+  gcp)
+    if ! command -v gcloud &>/dev/null; then
+      echo ""
+      echo "ERROR: Google Cloud SDK is not installed."
+      echo "  Install: https://cloud.google.com/sdk/docs/install"
+      echo "  Then:    gcloud auth login && gcloud config set project YOUR_PROJECT"
+      exit 1
+    fi
+    ;;
+  azure)
+    if ! command -v az &>/dev/null; then
+      echo ""
+      echo "ERROR: Azure CLI is not installed."
+      echo "  Install: brew install azure-cli"
+      echo "  Then:    az login"
+      exit 1
+    fi
+    ;;
 esac
 
 echo ""
@@ -237,8 +300,16 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure'):
   echo "Target: $TARGET_URL"
   echo "Config: ralph-config.json"
   echo ""
-  echo "Starting the build loop..."
-  ./scripts/start.sh "$TARGET_URL"
+
+  # Check if Ever CLI is available before auto-starting the build loop
+  if ! command -v ever &>/dev/null; then
+    echo "Next step: install Ever CLI (needed for the Inspect phase)."
+    echo "  Install: https://foreverbrowsing.com"
+    echo "  Then start the loop: ./scripts/start.sh \"$TARGET_URL\""
+  else
+    echo "Starting the build loop..."
+    ./scripts/start.sh "$TARGET_URL"
+  fi
 elif [[ "$result" == *"<promise>ONBOARD_FAILED</promise>"* ]]; then
   echo ""
   echo "=== Onboarding failed ==="
