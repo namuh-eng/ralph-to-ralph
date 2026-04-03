@@ -38,6 +38,22 @@ Now there's an **onboarding layer** that runs before the build loop:
 
 ---
 
+## Prerequisites
+
+You need these tools installed and authenticated before running onboarding:
+
+| Tool | Why | How to Install |
+|------|-----|---------------|
+| **Claude Code CLI** | Powers onboarding research, inspect, and build | `npm install -g @anthropic-ai/claude-code` + Anthropic API key |
+| **Codex CLI** | Powers QA phase | `npm install -g @openai/codex` + `OPENAI_API_KEY` env var |
+| **Ever CLI** | Browser automation for inspect + QA | Install from [foreverbrowsing.com](https://foreverbrowsing.com) |
+| **Cloud CLI** | Provisions infrastructure | AWS: `aws configure` / GCP: `gcloud auth login` / Azure: `az login` |
+| **Node.js 20+** | Runtime | `brew install node` or [nodejs.org](https://nodejs.org/) |
+
+> **Minimum for onboarding only:** Claude Code CLI + your cloud CLI. Ever CLI and Codex are needed later for the inspect/QA phases.
+
+---
+
 ## How to Use It
 
 ### 1. Clone the repo

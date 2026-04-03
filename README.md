@@ -75,14 +75,16 @@ The **watchdog orchestrator** ties it all together with auto-restart on failure,
 
 ### Prerequisites
 
-| Tool | Purpose |
-|------|---------|
-| [Node.js 20+](https://nodejs.org/) | Runtime |
-| [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) | Powers Inspect + Build phases |
-| [Codex CLI](https://github.com/openai/codex) | Powers QA phase |
-| [Ever CLI](https://foreverbrowsing.com) | Browser automation for inspection and E2E testing |
-| [AWS CLI](https://aws.amazon.com/cli/) | Cloud infrastructure (configured via `aws configure`) |
-| Docker | Deployment |
+| Tool | Used For | Setup |
+|------|----------|-------|
+| [Node.js 20+](https://nodejs.org/) | Runtime | `brew install node` or [download](https://nodejs.org/) |
+| [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) | Onboarding, Inspect, Build phases | `npm install -g @anthropic-ai/claude-code` then authenticate with your Anthropic API key |
+| [Codex CLI](https://github.com/openai/codex) | QA phase (independent evaluator) | `npm install -g @openai/codex` then set `OPENAI_API_KEY` |
+| [Ever CLI](https://foreverbrowsing.com) | Browser automation for Inspect + QA | Install from [foreverbrowsing.com](https://foreverbrowsing.com) — **required for Inspect and QA phases** |
+| Cloud CLI | Infrastructure provisioning | **AWS:** `brew install awscli && aws configure` / **GCP:** [install gcloud](https://cloud.google.com/sdk/docs/install) / **Azure:** `brew install azure-cli && az login` |
+| Docker | Deployment (optional) | [Install Docker](https://docs.docker.com/get-docker/) |
+
+> **Which phases need what:** Onboarding needs Claude Code + your cloud CLI. Inspect needs Claude Code + Ever CLI. Build needs Claude Code only. QA needs Codex + Ever CLI. You can run onboarding and build without Ever CLI, but Inspect and QA won't work without it.
 
 ### Run It
 
