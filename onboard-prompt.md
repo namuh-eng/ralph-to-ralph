@@ -150,13 +150,13 @@ Write the file `ralph-config.json` with this exact schema:
 
 **Required fields:** `targetUrl`, `targetName`, `cloudProvider`, `framework`, `database`.
 **Valid cloudProvider values:** `aws`, `gcp`, `azure`.
-**Valid deploymentTier values (AWS only):** `personal`, `team`.
+**Valid cloudProvider values:** `vercel`, `aws`, `gcp`, `azure`.
+**Valid deploymentTier values:** `personal`, `team`.
 
-**AWS deployment tier rules:**
-- `deploymentTier: "personal"` → `dbProvider: "neon"`, deploy via App Runner. Neon is serverless Postgres with a public SSL endpoint — no VPC, no RDS, no VPC connector needed. Simple and cheap for solo use.
-- `deploymentTier: "team"` → `dbProvider: "rds"`, deploy via ECS Fargate + ALB + private VPC. RDS in a private subnet, only reachable from Fargate tasks via security group rules.
-
-For GCP and Azure, `deploymentTier` is always `"team"` (they don't have an equivalent personal-tier path configured).
+**Stack rules:**
+- `cloudProvider: "vercel"` + `deploymentTier: "personal"` → deploy via Vercel CLI, database is Neon serverless Postgres (`dbProvider: "neon"`). No VPC, no cloud CLI needed beyond `vercel`. Best for personal/solo use.
+- `cloudProvider: "aws"` + `deploymentTier: "team"` → ECS Fargate + ALB + private VPC, RDS in private subnet (`dbProvider: "rds"`).
+- `cloudProvider: "gcp"` or `"azure"` → always `deploymentTier: "team"`, use respective preflight templates.
 
 Only include services the clone actually needs in the `services` object.
 
@@ -401,78 +401,54 @@ The bash wrapper will call `start.sh` automatically.
 
 ## Preflight Script Templates
 
-### AWS Preflight Template — Personal tier (App Runner + Neon)
+### Vercel + Neon Preflight Template (personal tier)
 
-Use this when `deploymentTier` is `"personal"`. Neon provides serverless Postgres over a
-public SSL endpoint — no VPC, no RDS, no VPC connector needed.
+Use this when `cloudProvider` is `"vercel"`. No VPC, no cloud CLI for the app itself.
+Vercel handles deployment; Neon handles the database over a public SSL endpoint.
 
 ```bash
 #!/bin/bash
-# Pre-flight: provision AWS infrastructure (personal tier — App Runner + Neon)
+# Pre-flight: Vercel + Neon setup (personal tier)
 set -euo pipefail
 
-REGION="${AWS_REGION:-us-east-1}"
 APP_NAME="__APP_NAME__"
 
-echo "=== Pre-flight Infrastructure Setup (AWS — personal tier) ==="
-echo "Region: $REGION"
-echo "Database: Neon (serverless Postgres — no AWS provisioning needed)"
-echo ""
-echo "ACTION REQUIRED: Create a free Neon database at https://neon.tech"
-echo "Then add to .env:"
-echo "  DATABASE_URL=<your-neon-connection-string>"
-echo "  DB_SSL=true"
-echo ""
-echo "Once DATABASE_URL is set in .env, re-run this script to continue."
+echo "=== Pre-flight Setup (Vercel + Neon) ==="
 echo ""
 
-if ! grep -q '^DATABASE_URL=' .env 2>/dev/null || grep -q 'DATABASE_URL=$' .env 2>/dev/null; then
+# 1. Neon database
+echo "--- Neon Database ---"
+echo "Create a free Postgres database at https://neon.tech"
+echo "Then copy the connection string into .env as DATABASE_URL."
+echo ""
+if ! grep -q '^DATABASE_URL=' .env 2>/dev/null; then
   echo "ERROR: DATABASE_URL not set in .env. Add your Neon connection string first."
+  echo "  Example: DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require"
   exit 1
 fi
 grep -q '^DB_SSL=' .env || echo "DB_SSL=true" >> .env
-echo "Database: using Neon (from DATABASE_URL in .env)"
+echo "Database: Neon (from DATABASE_URL in .env) ✓"
 
-# S3 Bucket (if needed)
+# 2. Vercel project
 echo ""
-echo "--- S3 Bucket ---"
-BUCKET="${APP_NAME}-storage-$(aws sts get-caller-identity --query Account --output text)"
-if aws s3 ls "s3://$BUCKET" 2>/dev/null; then
-  echo "S3 bucket $BUCKET already exists."
+echo "--- Vercel Project ---"
+if vercel whoami &>/dev/null; then
+  echo "Vercel: logged in ✓"
 else
-  aws s3 mb "s3://$BUCKET" --region $REGION
-  aws s3api put-bucket-cors --bucket "$BUCKET" --cors-configuration '{
-    "CORSRules": [{"AllowedHeaders": ["*"], "AllowedMethods": ["GET","PUT","POST"], "AllowedOrigins": ["*"], "MaxAgeSeconds": 3600}]
-  }'
-  echo "S3 bucket created: $BUCKET"
+  echo "ERROR: Not logged into Vercel. Run: vercel login"
+  exit 1
 fi
-
-# ECR Repository
-echo ""
-echo "--- ECR Repository ---"
-aws ecr describe-repositories --repository-names $APP_NAME --region $REGION 2>/dev/null || \
-  aws ecr create-repository --repository-name $APP_NAME --region $REGION
-echo "ECR repo ready: $APP_NAME"
-
-# SES (if email needed)
-echo ""
-echo "--- SES Sender Identity ---"
-SES_IDENTITY="${SES_IDENTITY:-${SENDER_EMAIL:-}}"
-if [ -n "$SES_IDENTITY" ]; then
-  if aws sesv2 get-email-identity --email-identity "$SES_IDENTITY" --region $REGION >/dev/null 2>&1; then
-    STATUS=$(aws sesv2 get-email-identity --email-identity "$SES_IDENTITY" --region $REGION --query 'VerificationStatus' --output text)
-    echo "Using existing SES identity: $SES_IDENTITY ($STATUS)"
-  else
-    aws sesv2 create-email-identity --email-identity "$SES_IDENTITY" --region $REGION 2>/dev/null || true
-    echo "Created SES identity: $SES_IDENTITY"
-  fi
-else
-  echo "No SES_IDENTITY set — skipping email setup."
-fi
+# Link or create the project (non-interactive)
+vercel link --yes --project "$APP_NAME" 2>/dev/null || true
+# Push env vars to Vercel
+vercel env add DATABASE_URL production <<< "$(grep '^DATABASE_URL=' .env | cut -d= -f2-)" 2>/dev/null || true
+vercel env add DB_SSL production <<< "true" 2>/dev/null || true
+echo "Vercel project linked: $APP_NAME ✓"
 
 echo ""
-echo "=== Pre-flight Complete (personal tier) ==="
-echo "Deploy target: AWS App Runner (docker build → ECR → App Runner service)"
+echo "=== Pre-flight Complete (Vercel + Neon) ==="
+echo "Deploy: run 'vercel --prod' from the project root (or push to your git remote)"
+echo "Database: Neon serverless Postgres"
 ```
 
 ### AWS Preflight Template — Team tier (ECS Fargate + RDS private VPC)

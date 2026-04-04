@@ -172,42 +172,39 @@ if ! [[ "$CLONE_NAME" =~ ^[a-zA-Z0-9._-]+$ ]]; then
 fi
 
 echo ""
-echo "Cloud provider options:"
-echo "  1) AWS  (stable — recommended)"
-echo "  2) GCP  (experimental)"
-echo "  3) Azure (experimental)"
-read -rp "Choose cloud provider [1]: " CLOUD_CHOICE
-case "${CLOUD_CHOICE:-1}" in
-  1|aws)   CLOUD_PROVIDER="aws" ;;
-  2|gcp)   CLOUD_PROVIDER="gcp" ;;
-  3|azure) CLOUD_PROVIDER="azure" ;;
-  *)       echo "Invalid choice. Using AWS."; CLOUD_PROVIDER="aws" ;;
+echo "Where should this clone run?"
+echo ""
+echo "  1) Vercel + Neon  (default — personal / solo dev)"
+echo "     Deploy with 'vercel'. Serverless Postgres via Neon."
+echo "     Free tier, zero ops. Best for building and experimenting."
+echo ""
+echo "  2) AWS — ECS Fargate + RDS  (team / production)"
+echo "     Private VPC, ALB, RDS in private subnets."
+echo "     Right architecture for shared use or real traffic."
+echo ""
+echo "  3) GCP  (experimental)"
+echo "  4) Azure  (experimental)"
+echo ""
+read -rp "Choose stack [1]: " STACK_CHOICE
+case "${STACK_CHOICE:-1}" in
+  1|vercel) CLOUD_PROVIDER="vercel"; DEPLOYMENT_TIER="personal" ;;
+  2|aws)    CLOUD_PROVIDER="aws";    DEPLOYMENT_TIER="team" ;;
+  3|gcp)    CLOUD_PROVIDER="gcp";    DEPLOYMENT_TIER="team" ;;
+  4|azure)  CLOUD_PROVIDER="azure";  DEPLOYMENT_TIER="team" ;;
+  *)        echo "Invalid choice. Using Vercel + Neon."; CLOUD_PROVIDER="vercel"; DEPLOYMENT_TIER="personal" ;;
 esac
-
-# ── Deployment tier (AWS only) ──
-DEPLOYMENT_TIER="personal"
-if [ "$CLOUD_PROVIDER" = "aws" ]; then
-  echo ""
-  echo "How will this clone be used?"
-  echo ""
-  echo "  1) Personal / solo dev  — App Runner + Neon (serverless Postgres)"
-  echo "     Simple setup, ~\$0-5/mo at low traffic, scales to zero."
-  echo "     No VPC, no cluster. Good for building and experimenting."
-  echo ""
-  echo "  2) Team / production    — ECS Fargate + RDS (private VPC)"
-  echo "     Full infrastructure: private subnets, ALB, security groups."
-  echo "     Right architecture for shared use or real traffic."
-  echo ""
-  read -rp "Choose deployment tier [1]: " TIER_CHOICE
-  case "${TIER_CHOICE:-1}" in
-    1|personal) DEPLOYMENT_TIER="personal" ;;
-    2|team)     DEPLOYMENT_TIER="team" ;;
-    *)          echo "Invalid choice. Using personal."; DEPLOYMENT_TIER="personal" ;;
-  esac
-fi
 
 # ── Verify cloud CLI is installed before the long research step ──
 case "$CLOUD_PROVIDER" in
+  vercel)
+    if ! command -v vercel &>/dev/null; then
+      echo ""
+      echo "ERROR: Vercel CLI is not installed."
+      echo "  Install: npm install -g vercel"
+      echo "  Then:    vercel login"
+      exit 1
+    fi
+    ;;
   aws)
     if ! command -v aws &>/dev/null; then
       echo ""
@@ -274,7 +271,7 @@ The user has already provided their answers:
 - Target URL: $TARGET_URL
 - Clone name: $CLONE_NAME
 - Cloud provider: $CLOUD_PROVIDER
-- Deployment tier: $DEPLOYMENT_TIER (personal = App Runner + Neon; team = ECS Fargate + RDS private VPC)
+- Deployment tier: $DEPLOYMENT_TIER (personal = Vercel + Neon; team = ECS Fargate + RDS private VPC / GCP / Azure)
 - Framework: nextjs (default)
 - Database: postgres (default)
 - Skip deployment: $SKIP_DEPLOY (if true, do NOT set up container registry, Docker, or deployment infrastructure. Only provision database and services needed for local development.)
