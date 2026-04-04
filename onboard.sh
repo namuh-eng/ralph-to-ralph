@@ -10,14 +10,15 @@ cleanup() {
   echo ""
   echo "=== Onboarding interrupted ==="
   echo ""
-  echo "The project may be in a partially configured state."
-  echo "You have two options:"
+  if [ -f "ralph-config.json" ]; then
+    echo "Config was generated. Re-run ./onboard.sh to resume from the build step."
+  elif [ -f ".onboard-answers.tmp" ]; then
+    echo "Your answers were saved. Re-run ./onboard.sh to skip re-entering them."
+  else
+    echo "No state was saved. Re-run ./onboard.sh to start fresh."
+  fi
   echo ""
-  echo "  1. Re-run:  ./onboard.sh"
-  echo "     (Will detect partial state and offer to reset)"
-  echo ""
-  echo "  2. Reset:   ./onboard.sh --reset"
-  echo "     (Restores all config files to their pre-onboarding state)"
+  echo "To reset everything: ./onboard.sh --reset"
   echo ""
   exit 130
 }
@@ -46,7 +47,7 @@ if [[ "${1:-}" == "--reset" ]]; then
       dirty=1
     fi
   done
-  rm -f ralph-config.json
+  rm -f ralph-config.json .onboard-answers.tmp
   if [ "$dirty" -eq 1 ]; then
     echo "  Running npm install to restore dependencies..."
     npm install --silent 2>/dev/null || true
@@ -138,9 +139,30 @@ print('Config is valid.')
   esac
 fi
 
+# ── Detect saved Q&A answers from a previous interrupted run ──
+_SKIP_QA=false
+if [ -f ".onboard-answers.tmp" ] && [ ! -f "ralph-config.json" ]; then
+  # shellcheck source=/dev/null
+  source .onboard-answers.tmp
+  echo "Found saved answers from a previous run:"
+  echo "  Target:  $TARGET_URL"
+  echo "  Clone:   $CLONE_NAME"
+  echo "  Stack:   $CLOUD_PROVIDER${CUSTOM_STACK_DESC:+ (custom: $CUSTOM_STACK_DESC)}"
+  echo ""
+  read -rp "Resume with these? [Y/n]: " _RESUME_ANSWERS
+  if [[ "${_RESUME_ANSWERS:-y}" =~ ^[Yy] ]]; then
+    _SKIP_QA=true
+    echo ""
+  else
+    rm -f .onboard-answers.tmp
+    _SKIP_QA=false
+  fi
+fi
+
 # ── Step 1: Collect user input interactively (bash handles Q&A) ──
 # claude -p runs in pipe mode (no back-and-forth), so we collect answers
 # here and pass them to Claude as context.
+if [ "$_SKIP_QA" = false ]; then
 
 read -rp "What product do you want to clone? (URL): " TARGET_URL
 if [ -z "$TARGET_URL" ]; then
@@ -186,6 +208,7 @@ echo "  4) Azure  (experimental)"
 echo "  5) Custom — describe your own stack"
 echo ""
 read -rp "Choose stack [1]: " STACK_CHOICE
+STACK_CHOICE="${STACK_CHOICE//[[:space:]]/}"  # strip whitespace
 CUSTOM_STACK_DESC=""
 GENERATOR="claude"
 case "${STACK_CHOICE:-1}" in
@@ -239,37 +262,79 @@ case "$CLOUD_PROVIDER" in
   vercel)
     if ! command -v vercel &>/dev/null; then
       echo ""
-      echo "ERROR: Vercel CLI is not installed."
-      echo "  Install: npm install -g vercel"
-      echo "  Then:    vercel login"
-      exit 1
+      echo "Vercel CLI is not installed."
+      echo "  Run: npm install -g vercel"
+      echo "  Then: vercel login"
+      echo ""
+      read -rp "Install now? [Y/n]: " _INSTALL_CHOICE
+      if [[ "${_INSTALL_CHOICE:-y}" =~ ^[Yy] ]]; then
+        npm install -g vercel
+        echo ""
+        echo "Now run: vercel login"
+        read -rp "Press Enter once you've logged in..."
+      else
+        echo "Skipping. Re-run ./onboard.sh once Vercel CLI is installed."
+        exit 1
+      fi
     fi
     ;;
   aws)
     if ! command -v aws &>/dev/null; then
       echo ""
-      echo "ERROR: AWS CLI is not installed."
-      echo "  Install: brew install awscli"
-      echo "  Then:    aws configure"
-      exit 1
+      echo "AWS CLI is not installed."
+      echo "  Run: brew install awscli"
+      echo "  Then: aws configure"
+      echo ""
+      read -rp "Install now? [Y/n]: " _INSTALL_CHOICE
+      if [[ "${_INSTALL_CHOICE:-y}" =~ ^[Yy] ]]; then
+        brew install awscli
+        echo ""
+        echo "Now run: aws configure"
+        read -rp "Press Enter once you've configured AWS credentials..."
+      else
+        echo "Skipping. Re-run ./onboard.sh once AWS CLI is installed."
+        exit 1
+      fi
     fi
     ;;
   gcp)
     if ! command -v gcloud &>/dev/null; then
       echo ""
-      echo "ERROR: Google Cloud SDK is not installed."
+      echo "Google Cloud SDK is not installed."
       echo "  Install: https://cloud.google.com/sdk/docs/install"
-      echo "  Then:    gcloud auth login && gcloud config set project YOUR_PROJECT"
-      exit 1
+      echo "  Then: gcloud auth login && gcloud config set project YOUR_PROJECT"
+      echo ""
+      read -rp "Open install page and continue once done? [Y/n]: " _INSTALL_CHOICE
+      if [[ "${_INSTALL_CHOICE:-y}" =~ ^[Yy] ]]; then
+        open "https://cloud.google.com/sdk/docs/install" 2>/dev/null || true
+        read -rp "Press Enter once gcloud is installed and authenticated..."
+        if ! command -v gcloud &>/dev/null; then
+          echo "gcloud still not found. Re-run ./onboard.sh once installed."
+          exit 1
+        fi
+      else
+        echo "Skipping. Re-run ./onboard.sh once Google Cloud SDK is installed."
+        exit 1
+      fi
     fi
     ;;
   azure)
     if ! command -v az &>/dev/null; then
       echo ""
-      echo "ERROR: Azure CLI is not installed."
-      echo "  Install: brew install azure-cli"
-      echo "  Then:    az login"
-      exit 1
+      echo "Azure CLI is not installed."
+      echo "  Run: brew install azure-cli"
+      echo "  Then: az login"
+      echo ""
+      read -rp "Install now? [Y/n]: " _INSTALL_CHOICE
+      if [[ "${_INSTALL_CHOICE:-y}" =~ ^[Yy] ]]; then
+        brew install azure-cli
+        echo ""
+        echo "Now run: az login"
+        read -rp "Press Enter once you've logged in..."
+      else
+        echo "Skipping. Re-run ./onboard.sh once Azure CLI is installed."
+        exit 1
+      fi
     fi
     ;;
   custom)
@@ -284,6 +349,19 @@ if [[ "${DEPLOY_CHOICE:-y}" =~ ^[Nn] ]]; then
 else
   SKIP_DEPLOY="false"
 fi
+
+fi  # end _SKIP_QA=false block
+
+# Save answers so a Ctrl+C re-run can skip re-entering them
+cat > .onboard-answers.tmp <<ANSWERS_EOF
+TARGET_URL="$TARGET_URL"
+CLONE_NAME="$CLONE_NAME"
+CLOUD_PROVIDER="$CLOUD_PROVIDER"
+DEPLOYMENT_TIER="$DEPLOYMENT_TIER"
+CUSTOM_STACK_DESC="$CUSTOM_STACK_DESC"
+GENERATOR="$GENERATOR"
+SKIP_DEPLOY="$SKIP_DEPLOY"
+ANSWERS_EOF
 
 echo ""
 echo "--- Summary ---"
@@ -388,6 +466,8 @@ Requirements:
       echo "scripts/preflight.sh generated by Codex ✓"
     fi
   fi
+
+  rm -f .onboard-answers.tmp
 
   echo ""
   echo "=== Onboarding complete ==="
