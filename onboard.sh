@@ -113,13 +113,18 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
 print('Config is valid.')
 " || { echo "Config is invalid. Run ./onboard.sh --reset to start fresh."; exit 1; }
       TARGET_URL=$(python3 -c "import json; print(json.load(open('ralph-config.json'))['targetUrl'])")
+      BROWSER_AGENT=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
       echo ""
       echo "=== Resuming with existing config ==="
       echo "Target: $TARGET_URL"
       echo ""
-      if ! command -v ever &>/dev/null; then
+      if [ "${BROWSER_AGENT:-ever}" = "ever" ] && ! command -v ever &>/dev/null; then
         echo "Next step: install Ever CLI (needed for the Inspect phase)."
         echo "  Install: https://foreverbrowsing.com"
+        echo "  Then start the loop: ./scripts/start.sh \"$TARGET_URL\""
+      elif [ "${BROWSER_AGENT:-ever}" = "stagehand" ] && ! node -e "require('@browserbasehq/stagehand')" &>/dev/null; then
+        echo "Next step: install Stagehand."
+        echo "  Run: npm install @browserbasehq/stagehand"
         echo "  Then start the loop: ./scripts/start.sh \"$TARGET_URL\""
       else
         echo "Starting the build loop..."
@@ -350,6 +355,43 @@ else
   SKIP_DEPLOY="false"
 fi
 
+echo ""
+echo "Which browser agent for inspecting and QA-testing the product?"
+echo ""
+echo "  1) Ever CLI    (recommended — visual AI browser agent)"
+echo "     Best for inspecting the target product visually."
+echo "     Install: https://foreverbrowsing.com"
+echo ""
+echo "  2) Playwright  (already installed — scripted automation)"
+echo "     Uses npx playwright to browse and screenshot pages."
+echo ""
+echo "  3) Stagehand   (AI-powered via Browserbase)"
+echo "     Install: npm install @browserbasehq/stagehand"
+echo ""
+echo "  4) Custom — describe your own"
+echo ""
+read -rp "Choose browser agent [1]: " BROWSER_CHOICE
+BROWSER_CHOICE="${BROWSER_CHOICE//[[:space:]]/}"
+BROWSER_AGENT_DESC=""
+case "${BROWSER_CHOICE:-1}" in
+  1|ever)       BROWSER_AGENT="ever" ;;
+  2|playwright) BROWSER_AGENT="playwright" ;;
+  3|stagehand)  BROWSER_AGENT="stagehand" ;;
+  4|custom)
+    BROWSER_AGENT="custom"
+    echo ""
+    read -rp "Describe your browser agent: " BROWSER_AGENT_DESC
+    if [ -z "$BROWSER_AGENT_DESC" ]; then
+      echo "ERROR: Description is required for custom browser agent."
+      exit 1
+    fi
+    ;;
+  *)
+    echo "Invalid choice. Using Ever CLI."
+    BROWSER_AGENT="ever"
+    ;;
+esac
+
 fi  # end _SKIP_QA=false block
 
 # Save answers so a Ctrl+C re-run can skip re-entering them
@@ -361,6 +403,8 @@ DEPLOYMENT_TIER="$DEPLOYMENT_TIER"
 CUSTOM_STACK_DESC="$CUSTOM_STACK_DESC"
 GENERATOR="$GENERATOR"
 SKIP_DEPLOY="$SKIP_DEPLOY"
+BROWSER_AGENT="$BROWSER_AGENT"
+BROWSER_AGENT_DESC="$BROWSER_AGENT_DESC"
 ANSWERS_EOF
 
 echo ""
@@ -405,6 +449,7 @@ The user has already provided their answers:
 - Framework: nextjs (default)
 - Database: postgres (default)
 - Skip deployment: $SKIP_DEPLOY (if true, do NOT set up deployment infrastructure — only provision database and services needed for local development. If false and cloudProvider is 'vercel', deploy via 'vercel --prod' — no Docker needed. If false and cloudProvider is 'aws'/'gcp'/'azure', build a Docker image and push to the cloud container registry.)
+- Browser agent: $BROWSER_AGENT (ever = Ever CLI for visual inspection; playwright = npx playwright scripted; stagehand = @browserbasehq/stagehand AI agent; custom = $BROWSER_AGENT_DESC). Set this as 'browserAgent' in ralph-config.json.
 
 SKIP Steps 1 and 2 (already answered above). Start directly from Step 3 (Technical Architecture Scan).
 Research the target product, generate ralph-config.json, check dependencies, rewrite config files, and install packages.
@@ -482,10 +527,14 @@ Requirements:
   echo "Config: ralph-config.json"
   echo ""
 
-  # Check if Ever CLI is available before auto-starting the build loop
-  if ! command -v ever &>/dev/null; then
+  # Check if required browser agent is available before auto-starting the build loop
+  if [ "${BROWSER_AGENT:-ever}" = "ever" ] && ! command -v ever &>/dev/null; then
     echo "Next step: install Ever CLI (needed for the Inspect phase)."
     echo "  Install: https://foreverbrowsing.com"
+    echo "  Then start the loop: ./scripts/start.sh \"$TARGET_URL\""
+  elif [ "${BROWSER_AGENT:-ever}" = "stagehand" ] && ! node -e "require('@browserbasehq/stagehand')" &>/dev/null; then
+    echo "Next step: install Stagehand."
+    echo "  Run: npm install @browserbasehq/stagehand"
     echo "  Then start the loop: ./scripts/start.sh \"$TARGET_URL\""
   else
     echo "Starting the build loop..."

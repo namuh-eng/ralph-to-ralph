@@ -8,6 +8,7 @@ TARGET_URL="${1:?Usage: $0 <target-url> [iterations]}"
 ITERATIONS="${2:-999}"
 
 [ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./onboard.sh first."; exit 1; }
+BROWSER_AGENT=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
 
 echo "=== RALPH-TO-RALPH: Phase 1 (Inspect) ==="
 echo "Target: $TARGET_URL"
@@ -21,18 +22,25 @@ if [ ! -f "prd.json" ]; then
 fi
 mkdir -p screenshots
 
-# Start Ever CLI session
-ever start --url "$TARGET_URL"
-trap 'ever stop 2>/dev/null' EXIT
-
-echo "Ever CLI session started."
+# Start browser agent session
+if [ "$BROWSER_AGENT" = "ever" ]; then
+  ever start --url "$TARGET_URL"
+  trap 'ever stop 2>/dev/null' EXIT
+  echo "Ever CLI session started."
+elif [ "$BROWSER_AGENT" = "stagehand" ]; then
+  echo "Using Stagehand for browser automation."
+else
+  echo "Using Playwright for browser automation."
+fi
 echo ""
 
 for ((i=1; i<=$ITERATIONS; i++)); do
   echo "--- Inspection iteration $i/$ITERATIONS ---"
 
+  _BROWSER_REF=""
+  [ "$BROWSER_AGENT" = "ever" ] && _BROWSER_REF="@ever-cli-reference.md"
   result=$(timeout 1200 claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
-"@inspect-prompt.md @inspect-spec.md @ever-cli-reference.md @prd.json @inspect-progress.txt @pre-setup.md @ralph-config.json
+"@inspect-prompt.md @inspect-spec.md $_BROWSER_REF @prd.json @inspect-progress.txt @pre-setup.md @ralph-config.json
 
 TARGET URL: $TARGET_URL
 ITERATION: $i of $ITERATIONS

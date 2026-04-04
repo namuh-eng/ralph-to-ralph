@@ -27,7 +27,12 @@ if [ -f "$LOCKFILE" ]; then
   rm -f "$LOCKFILE"
 fi
 echo $$ > "$LOCKFILE"
-trap 'rm -f "$LOCKFILE"; ever stop 2>/dev/null' EXIT
+_BROWSER_AGENT=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
+if [ "$_BROWSER_AGENT" = "ever" ]; then
+  trap 'rm -f "$LOCKFILE"; ever stop 2>/dev/null' EXIT
+else
+  trap 'rm -f "$LOCKFILE"' EXIT
+fi
 
 # ─── Helpers ───
 

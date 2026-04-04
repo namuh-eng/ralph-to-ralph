@@ -130,6 +130,7 @@ Write the file `ralph-config.json` with this exact schema:
   "database": "postgres",
   "dbProvider": "neon",
   "skipDeploy": false,
+  "browserAgent": "ever",
   "services": {
     "email": { "provider": "ses", "package": "@aws-sdk/client-sesv2" },
     "storage": { "provider": "s3", "package": "@aws-sdk/client-s3" },
@@ -152,6 +153,7 @@ Write the file `ralph-config.json` with this exact schema:
 **Valid cloudProvider values:** `aws`, `gcp`, `azure`.
 **Valid cloudProvider values:** `vercel`, `aws`, `gcp`, `azure`.
 **Valid deploymentTier values:** `personal`, `team`.
+- `browserAgent`: "ever" | "playwright" | "stagehand" | "custom" — browser agent for inspect and QA phases
 
 **Stack rules:**
 - `cloudProvider: "vercel"` + `deploymentTier: "personal"` → deploy via Vercel CLI, database is Neon serverless Postgres (`dbProvider: "neon"`). No VPC, no cloud CLI needed beyond `vercel`. Best for personal/solo use.

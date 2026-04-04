@@ -8,6 +8,7 @@ TARGET_URL="${1:-}"
 ITERATIONS="${2:-999}"
 
 [ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./onboard.sh first."; exit 1; }
+BROWSER_AGENT=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
 
 if [ ! -f "prd.json" ]; then
   echo "Error: prd.json not found. Run build-ralph.sh first."
@@ -27,7 +28,11 @@ fi
 npm run dev &
 DEV_PID=$!
 echo "Dev server started (PID: $DEV_PID)"
-trap 'kill $DEV_PID 2>/dev/null; ever stop 2>/dev/null' EXIT
+if [ "$BROWSER_AGENT" = "ever" ]; then
+  trap 'kill $DEV_PID 2>/dev/null; ever stop 2>/dev/null' EXIT
+else
+  trap 'kill $DEV_PID 2>/dev/null' EXIT
+fi
 sleep 5
 
 # Run Playwright regression suite first
@@ -37,9 +42,11 @@ if [ -f "playwright.config.ts" ] || [ -d "tests/e2e" ]; then
   echo ""
 fi
 
-# Start Ever CLI session for QA
-ever start --url http://localhost:3015
-echo "Ever CLI session started for QA."
+# Start browser agent session for QA
+if [ "$BROWSER_AGENT" = "ever" ]; then
+  ever start --url http://localhost:3015
+  echo "Ever CLI session started for QA."
+fi
 echo ""
 
 # Build target URL context
