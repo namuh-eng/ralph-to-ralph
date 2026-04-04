@@ -6,14 +6,24 @@ Interactive onboarding for ralph-to-ralph — runs inside a Claude Code session 
 
 Run once from the repo root:
 
+**Claude Code:**
 ```bash
 ln -s "$(pwd)/skills/ralph-to-ralph-onboard" ~/.claude/skills/ralph-to-ralph-onboard
 ```
 
+**Codex:**
+```bash
+ln -s "$(pwd)/skills/ralph-to-ralph-onboard" ~/.codex/skills/ralph-to-ralph-onboard
+```
+
 ## Use
 
-In any Claude Code session inside this repo:
+**Claude Code** — in any Claude Code session inside this repo:
+```
+/ralph-to-ralph-onboard
+```
 
+**Codex** — in any Codex session inside this repo:
 ```
 /ralph-to-ralph-onboard
 ```
