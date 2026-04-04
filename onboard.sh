@@ -148,8 +148,7 @@ if [ -z "$TARGET_URL" ]; then
   exit 1
 fi
 if ! [[ "$TARGET_URL" =~ ^https?:// ]]; then
-  echo "ERROR: Target URL must start with http:// or https://"
-  exit 1
+  TARGET_URL="https://$TARGET_URL"
 fi
 if [[ "$TARGET_URL" == *"<promise>"* ]] || [[ "$TARGET_URL" == *"</promise>"* ]]; then
   echo "ERROR: Invalid characters in URL."
