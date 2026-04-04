@@ -273,34 +273,46 @@ Then update `package.json`:
 - Remove `.tmp-versions.json` after use
 - **Do NOT manually set framework version numbers** — always derive from the official CLI scaffold
 
-### 7c-2: Install cloud SDK dependencies
+### 7c-2: Install framework dependencies
 
-**Before installing anything, check what's already in package.json.** The template ships with AWS SDK packages pre-installed. Only install packages that are NOT already present.
+The template `package.json` ships with only dev tooling (Biome, Playwright, TypeScript, Vitest). You must install all framework, ORM, UI, and cloud packages from scratch.
 
+**Step 1: Install framework + ORM + UI**
+
+Based on the framework determined in Step 3:
+
+Next.js (default):
 ```bash
-# Check what's already installed before adding
-node -e "const p=require('./package.json'); console.log(Object.keys({...p.dependencies,...p.devDependencies}).join('\n'))" > .tmp-existing-deps.txt
+# Install framework (versions from scaffold, see 7c above)
+npm install react@latest react-dom@latest
+
+# ORM + DB driver
+npm install drizzle-orm@latest pg@latest
+npm install --save-dev drizzle-kit@latest @types/pg@latest
+
+# UI + styling
+npm install tailwindcss@latest postcss@latest autoprefixer@latest
+npm install @radix-ui/react-dialog@latest @radix-ui/react-dropdown-menu@latest \
+  @radix-ui/react-tabs@latest @radix-ui/react-accordion@latest \
+  @radix-ui/react-popover@latest @radix-ui/react-switch@latest
+
+# React types
+npm install --save-dev @types/react@latest @types/react-dom@latest \
+  @vitejs/plugin-react@latest @testing-library/react@latest \
+  @testing-library/jest-dom@latest @testing-library/user-event@latest
 ```
 
-**Rules:**
-1. If the user chose AWS and `@aws-sdk/*` packages are already in package.json — do NOT re-install them
-2. If the user chose a DIFFERENT provider (GCP/Azure) — remove the AWS SDK packages first, then install the new provider's packages
-3. Only install packages for services the clone actually needs (determined by Step 3d)
-4. Always use `@latest` — never hardcode version numbers
+Only install Radix UI components the clone actually needs (check Step 3 findings).
 
-**Remove packages for non-chosen providers:**
+**Step 2: Install cloud SDK dependencies**
+
+Only install packages for services the clone actually needs (determined by Step 3d). Always use `@latest`.
+
+AWS (skip packages not needed):
 ```bash
-# If switching AWAY from AWS:
-npm uninstall @aws-sdk/client-s3 @aws-sdk/client-sesv2 @aws-sdk/client-sns @aws-sdk/s3-request-presigner 2>/dev/null || true
-```
-
-**Install only MISSING packages for the chosen provider:**
-
-AWS (skip if already in package.json):
-```bash
-npm install @aws-sdk/client-s3@latest          # if storage needed AND not already installed
-npm install @aws-sdk/client-sesv2@latest        # if email needed AND not already installed
-npm install @aws-sdk/s3-request-presigner@latest # if presigned URLs needed AND not already installed
+npm install @aws-sdk/client-s3@latest          # if storage needed
+npm install @aws-sdk/client-sesv2@latest        # if email needed
+npm install @aws-sdk/s3-request-presigner@latest # if presigned URLs needed
 ```
 
 GCP:

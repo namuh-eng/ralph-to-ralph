@@ -5,14 +5,14 @@ A three-phase autonomous system that clones any SaaS product from just a URL.
 Phase 1: Inspect (Claude + Ever CLI) → Phase 2: Build (Claude) → Phase 3: QA (Codex + Ever CLI)
 
 ## Tech Stack
-- **Framework**: Next.js 16 (App Router, Turbopack) — pre-installed, do not change
+- **Framework**: Determined during onboarding — installed by Claude based on target product (default: Next.js 16 App Router)
 - **Language**: TypeScript strict mode, no `any` types
-- **Styling**: Tailwind CSS
-- **UI Components**: Radix UI
-- **Database**: RDS Postgres via Drizzle ORM
-- **Unit Tests**: Vitest
-- **E2E Tests**: Playwright (pre-configured)
-- **Linting**: Biome (pre-configured)
+- **Styling**: Installed during onboarding (default: Tailwind CSS)
+- **UI Components**: Installed during onboarding (default: Radix UI)
+- **Database**: Installed during onboarding (default: Drizzle ORM + Postgres)
+- **Unit Tests**: Vitest (pre-installed)
+- **E2E Tests**: Playwright (pre-installed)
+- **Linting**: Biome (pre-installed)
 
 ## Commands
 - `make check` — typecheck + lint/format (Biome)

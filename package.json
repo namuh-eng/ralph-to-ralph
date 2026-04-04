@@ -15,41 +15,13 @@
     "db:migrate": "drizzle-kit migrate --config drizzle.config.ts",
     "db:push": "drizzle-kit push --config drizzle.config.ts"
   },
-  "dependencies": {
-    "@aws-sdk/client-s3": "^3.1019.0",
-    "@aws-sdk/client-sesv2": "^3.1019.0",
-    "@aws-sdk/client-sns": "^3.1019.0",
-    "@aws-sdk/s3-request-presigner": "^3.1019.0",
-    "@radix-ui/react-accordion": "^1.2.2",
-    "@radix-ui/react-dialog": "^1.1.4",
-    "@radix-ui/react-dropdown-menu": "^2.1.4",
-    "@radix-ui/react-popover": "^1.1.4",
-    "@radix-ui/react-switch": "^1.1.2",
-    "@radix-ui/react-tabs": "^1.1.2",
-    "drizzle-orm": "^0.38.0",
-    "next": "^16.2.1",
-    "pg": "^8.16.3",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "slides-grab": "^1.2.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
     "@playwright/test": "^1.58.2",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.1.0",
-    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20.17.0",
-    "@types/pg": "^8.15.6",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "^10.4.20",
-    "drizzle-kit": "^0.30.0",
-    "jsdom": "^25.0.1",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17",
     "typescript": "^5.7.0",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "jsdom": "^25.0.1"
   }
 }
