@@ -106,7 +106,7 @@ missing = [k for k in required if k not in c]
 if missing:
     print(f'ERROR: ralph-config.json missing required fields: {missing}', file=sys.stderr)
     sys.exit(1)
-if c['cloudProvider'] not in ('aws', 'gcp', 'azure'):
+if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
     print(f'ERROR: invalid cloudProvider: {c[\"cloudProvider\"]}', file=sys.stderr)
     sys.exit(1)
 print('Config is valid.')
@@ -184,14 +184,55 @@ echo "     Right architecture for shared use or real traffic."
 echo ""
 echo "  3) GCP  (experimental)"
 echo "  4) Azure  (experimental)"
+echo "  5) Custom — describe your own stack"
 echo ""
 read -rp "Choose stack [1]: " STACK_CHOICE
+CUSTOM_STACK_DESC=""
+GENERATOR="claude"
 case "${STACK_CHOICE:-1}" in
   1|vercel) CLOUD_PROVIDER="vercel"; DEPLOYMENT_TIER="personal" ;;
   2|aws)    CLOUD_PROVIDER="aws";    DEPLOYMENT_TIER="team" ;;
   3|gcp)    CLOUD_PROVIDER="gcp";    DEPLOYMENT_TIER="team" ;;
   4|azure)  CLOUD_PROVIDER="azure";  DEPLOYMENT_TIER="team" ;;
-  *)        echo "Invalid choice. Using Vercel + Neon."; CLOUD_PROVIDER="vercel"; DEPLOYMENT_TIER="personal" ;;
+  5|custom)
+    CLOUD_PROVIDER="custom"
+    DEPLOYMENT_TIER="custom"
+    echo ""
+    echo "Describe your stack. Be specific — include your deploy platform, database,"
+    echo "and any cloud services the clone will need."
+    echo "Examples:"
+    echo "  'Railway + Neon — deploy to Railway, Postgres via Neon'"
+    echo "  'Fly.io + Supabase — Fly.io for the app, Supabase for Postgres and storage'"
+    echo "  'Docker Compose on a VPS — self-hosted, local Postgres, Nginx reverse proxy'"
+    echo ""
+    read -rp "Your stack: " CUSTOM_STACK_DESC
+    if [ -z "$CUSTOM_STACK_DESC" ]; then
+      echo "ERROR: Stack description is required for custom mode."
+      exit 1
+    fi
+    echo ""
+    echo "Generate the preflight script with:"
+    echo "  1) Claude (default — better at reasoning about what your stack needs)"
+    echo "  2) Codex  (strong at writing infrastructure scripts and bash)"
+    echo ""
+    read -rp "Choose generator [1]: " GEN_CHOICE
+    case "${GEN_CHOICE:-1}" in
+      2|codex)
+        if command -v codex &>/dev/null; then
+          GENERATOR="codex"
+        else
+          echo "Codex not found — falling back to Claude."
+          echo "  Install Codex: npm install -g @openai/codex"
+          GENERATOR="claude"
+        fi
+        ;;
+      *) GENERATOR="claude" ;;
+    esac
+    ;;
+  *)
+    echo "Invalid choice. Using Vercel + Neon."
+    CLOUD_PROVIDER="vercel"; DEPLOYMENT_TIER="personal"
+    ;;
 esac
 
 # ── Verify cloud CLI is installed before the long research step ──
@@ -232,6 +273,9 @@ case "$CLOUD_PROVIDER" in
       exit 1
     fi
     ;;
+  custom)
+    echo "Custom stack: will generate preflight using $GENERATOR."
+    ;;
 esac
 
 echo ""
@@ -271,13 +315,17 @@ The user has already provided their answers:
 - Target URL: $TARGET_URL
 - Clone name: $CLONE_NAME
 - Cloud provider: $CLOUD_PROVIDER
-- Deployment tier: $DEPLOYMENT_TIER (personal = Vercel + Neon; team = ECS Fargate + RDS private VPC / GCP / Azure)
+- Deployment tier: $DEPLOYMENT_TIER (personal = Vercel + Neon; team = ECS Fargate + RDS private VPC / GCP / Azure; custom = user-defined)
+- Custom stack description: ${CUSTOM_STACK_DESC:-(none)}
+- Preflight generator: $GENERATOR (claude = you write the preflight; codex = Claude writes ralph-config.json only, Codex generates preflight separately)
 - Framework: nextjs (default)
 - Database: postgres (default)
 - Skip deployment: $SKIP_DEPLOY (if true, do NOT set up container registry, Docker, or deployment infrastructure. Only provision database and services needed for local development.)
 
 SKIP Steps 1 and 2 (already answered above). Start directly from Step 3 (Technical Architecture Scan).
 Research the target product, generate ralph-config.json, check dependencies, rewrite config files, and install packages.
+If cloudProvider is 'custom' and generator is 'claude': also generate scripts/preflight.sh from the custom stack description.
+If cloudProvider is 'custom' and generator is 'codex': generate ralph-config.json and all config files, but SKIP writing scripts/preflight.sh — Codex will generate it separately.
 Output <promise>ONBOARD_COMPLETE</promise> when done.
 Output <promise>ONBOARD_FAILED</promise> if any check fails.") || claude_exit=$?
 
@@ -310,10 +358,37 @@ missing = [k for k in required if k not in c]
 if missing:
     print(f'ERROR: ralph-config.json missing required fields: {missing}', file=sys.stderr)
     sys.exit(1)
-if c['cloudProvider'] not in ('aws', 'gcp', 'azure'):
+if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
     print(f'ERROR: invalid cloudProvider: {c[\"cloudProvider\"]}', file=sys.stderr)
     sys.exit(1)
 " || exit 1
+
+  # ── Codex preflight generation (custom stack, generator=codex) ──
+  if [ "$CLOUD_PROVIDER" = "custom" ] && [ "$GENERATOR" = "codex" ]; then
+    echo ""
+    echo "--- Generating preflight script with Codex... ---"
+    _REPO_ROOT=$(git rev-parse --show-toplevel)
+    codex exec "Generate a bash preflight script (scripts/preflight.sh) for the following stack:
+
+Stack description: $CUSTOM_STACK_DESC
+Clone name: $(python3 -c "import json; print(json.load(open('ralph-config.json'))['targetName'])" 2>/dev/null || echo '__APP_NAME__')
+ralph-config.json: $(cat ralph-config.json 2>/dev/null || echo '{}')
+
+Requirements:
+- Write scripts/preflight.sh that provisions all infrastructure described above
+- Script must be idempotent (safe to re-run)
+- Use grep -q guards before appending DATABASE_URL and DB_SSL to .env
+- Output clear progress messages for each step
+- Exit with code 1 and a clear error message if any step fails
+- End with: echo '=== Pre-flight Complete ==='" \
+      -C "$_REPO_ROOT" -s write --approval-policy never 2>/dev/null || {
+      echo "WARNING: Codex preflight generation failed. You may need to write scripts/preflight.sh manually."
+    }
+    if [ -f "scripts/preflight.sh" ]; then
+      chmod +x scripts/preflight.sh
+      echo "scripts/preflight.sh generated by Codex ✓"
+    fi
+  fi
 
   echo ""
   echo "=== Onboarding complete ==="

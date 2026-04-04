@@ -157,6 +157,7 @@ Write the file `ralph-config.json` with this exact schema:
 - `cloudProvider: "vercel"` + `deploymentTier: "personal"` → deploy via Vercel CLI, database is Neon serverless Postgres (`dbProvider: "neon"`). No VPC, no cloud CLI needed beyond `vercel`. Best for personal/solo use.
 - `cloudProvider: "aws"` + `deploymentTier: "team"` → ECS Fargate + ALB + private VPC, RDS in private subnet (`dbProvider: "rds"`).
 - `cloudProvider: "gcp"` or `"azure"` → always `deploymentTier: "team"`, use respective preflight templates.
+- `cloudProvider: "custom"` → set `deploymentTier: "custom"`, derive `dbProvider` and `services` from the user's stack description. If `generator` is `"claude"`: write `scripts/preflight.sh` from scratch (see Custom Preflight guidelines below). If `generator` is `"codex"`: skip preflight — Codex generates it after your session.
 
 Only include services the clone actually needs in the `services` object.
 
@@ -396,6 +397,33 @@ Handing off to the build loop...
 Then output: `<promise>ONBOARD_COMPLETE</promise>`
 
 The bash wrapper will call `start.sh` automatically.
+
+---
+
+## Custom Preflight Guidelines
+
+When `cloudProvider` is `"custom"` and `generator` is `"claude"`, write `scripts/preflight.sh`
+from scratch based on the user's stack description. Follow these rules:
+
+1. **Start with** `#!/bin/bash` + `set -euo pipefail` + `cd "$(dirname "$0")"`
+2. **Be idempotent** — every resource creation must check if it already exists first
+3. **Guard `.env` appends** — use `grep -q '^KEY=' .env || echo "KEY=value" >> .env`
+4. **Fail loudly** — `exit 1` with a clear message if any required step fails
+5. **Print progress** — `echo "--- Step name ---"` before each major step
+6. **Handle the database** — whatever DB the user described, write the connection string to `.env` as `DATABASE_URL`
+7. **End with** `echo "=== Pre-flight Complete ==="` and a summary of what was provisioned
+
+**Common patterns by platform:**
+
+Railway: use `railway` CLI — `railway login`, `railway init`, `railway up`
+Fly.io: use `fly` CLI — `fly launch --no-deploy`, `fly postgres create`, `fly secrets set DATABASE_URL=...`
+Docker Compose (self-hosted): write a `docker-compose.yml` with the app + postgres services
+Render: note that Render has no CLI for provisioning — output instructions for the user to create manually
+PlanetScale: use `pscale` CLI — `pscale auth login`, `pscale database create`, `pscale connect`
+Supabase: use `supabase` CLI — `supabase init`, `supabase db start` (local) or note to create project at supabase.com
+
+If the platform has no CLI or can't be provisioned programmatically, write a preflight script that
+outputs clear manual instructions and exits 0 (don't block the flow).
 
 ---
 
