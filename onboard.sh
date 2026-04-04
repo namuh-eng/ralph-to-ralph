@@ -370,7 +370,14 @@ echo "Clone:     $CLONE_NAME"
 echo "Cloud:     $CLOUD_PROVIDER"
 echo "Framework: Next.js 16 (default)"
 echo "Database:  Postgres (default)"
-echo "Deploy:    $([ "$SKIP_DEPLOY" = "true" ] && echo "No (build locally only)" || echo "Yes (Docker → cloud)")"
+if [ "$SKIP_DEPLOY" = "true" ]; then
+  _DEPLOY_LABEL="No (build locally only)"
+elif [ "$CLOUD_PROVIDER" = "vercel" ]; then
+  _DEPLOY_LABEL="Yes (vercel --prod)"
+else
+  _DEPLOY_LABEL="Yes (Docker → cloud)"
+fi
+echo "Deploy:    $_DEPLOY_LABEL"
 echo ""
 read -rp "Proceed? [Y/n]: " CONFIRM
 if [[ "${CONFIRM:-y}" =~ ^[Nn] ]]; then
@@ -397,7 +404,7 @@ The user has already provided their answers:
 - Preflight generator: $GENERATOR (claude = you write the preflight; codex = Claude writes ralph-config.json only, Codex generates preflight separately)
 - Framework: nextjs (default)
 - Database: postgres (default)
-- Skip deployment: $SKIP_DEPLOY (if true, do NOT set up container registry, Docker, or deployment infrastructure. Only provision database and services needed for local development.)
+- Skip deployment: $SKIP_DEPLOY (if true, do NOT set up deployment infrastructure — only provision database and services needed for local development. If false and cloudProvider is 'vercel', deploy via 'vercel --prod' — no Docker needed. If false and cloudProvider is 'aws'/'gcp'/'azure', build a Docker image and push to the cloud container registry.)
 
 SKIP Steps 1 and 2 (already answered above). Start directly from Step 3 (Technical Architecture Scan).
 Research the target product, generate ralph-config.json, check dependencies, rewrite config files, and install packages.
