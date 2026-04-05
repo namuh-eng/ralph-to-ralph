@@ -111,23 +111,13 @@ That's it. The onboarding script asks what product to clone, scans its docs/API,
 
 #### Prefer interactive onboarding?
 
-If you'd rather have a conversation — Claude researches the product live, explains what needs to be set up (AWS SES, Neon, etc.) in plain English, and walks you through each decision — install the skill:
-
-```bash
-# Claude Code
-ln -s "$(pwd)/skills/ralph-to-ralph-onboard" ~/.claude/skills/ralph-to-ralph-onboard
-
-# Codex
-ln -s "$(pwd)/skills/ralph-to-ralph-onboard" ~/.codex/skills/ralph-to-ralph-onboard
-```
-
-Then in any Claude Code or Codex session inside this repo:
+If you'd rather have a conversation — Claude researches the product live, explains what needs to be set up (AWS SES, Neon, etc.) in plain English, and walks you through each decision — just type this in any Claude Code session inside the repo:
 
 ```
 /ralph-to-ralph-onboard
 ```
 
-Both paths produce the same `ralph-config.json` and project setup. Use `onboard.sh` for automation or if you know what you want. Use the skill for a guided, conversational experience.
+No install needed — the skill is included in the repo. Both paths produce the same `ralph-config.json` and project setup. Use `onboard.sh` for automation; use the skill for a guided experience.
 
 ## What Gets Built
 
