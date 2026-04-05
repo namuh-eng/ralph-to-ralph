@@ -400,7 +400,10 @@ _ENV_WARNINGS=()
 # Create .env from example if it doesn't exist
 if [ ! -f ".env" ]; then
   if [ -f ".env.example" ]; then
-    cp .env.example .env
+    # Strip placeholder DATABASE_URL so the preflight script can write the real one.
+    # The grep -q guard in preflight templates skips writing if any DATABASE_URL exists,
+    # so copying the placeholder would block the real URL from ever being set.
+    grep -v '^DATABASE_URL=postgresql://user:password@' .env.example > .env
     echo "Created .env from .env.example — fill in your values."
   else
     touch .env
@@ -478,18 +481,37 @@ esac
 
 fi  # end _SKIP_QA=false block
 
+# ── Re-verify cloud CLI auth if resuming (sessions can expire between runs) ──
+if [ "$_SKIP_QA" = true ] && [ "$CLOUD_PROVIDER" != "custom" ]; then
+  _auth_ok=false
+  case "$CLOUD_PROVIDER" in
+    vercel) vercel whoami &>/dev/null && _auth_ok=true ;;
+    aws)    aws sts get-caller-identity &>/dev/null && _auth_ok=true ;;
+    gcp)    gcloud auth print-identity-token &>/dev/null && _auth_ok=true ;;
+    azure)  az account show &>/dev/null && _auth_ok=true ;;
+  esac
+  if [ "$_auth_ok" = false ]; then
+    echo ""
+    echo "ERROR: $CLOUD_PROVIDER CLI session has expired."
+    echo "Re-run ./onboard.sh to re-authenticate."
+    echo "(Your answers are saved in .onboard-answers.tmp — stack selection will be remembered.)"
+    exit 1
+  fi
+fi
+
 # Save answers so a Ctrl+C re-run can skip re-entering them
-cat > .onboard-answers.tmp <<ANSWERS_EOF
-TARGET_URL="$TARGET_URL"
-CLONE_NAME="$CLONE_NAME"
-CLOUD_PROVIDER="$CLOUD_PROVIDER"
-DEPLOYMENT_TIER="$DEPLOYMENT_TIER"
-CUSTOM_STACK_DESC="$CUSTOM_STACK_DESC"
-GENERATOR="$GENERATOR"
-SKIP_DEPLOY="$SKIP_DEPLOY"
-BROWSER_AGENT="$BROWSER_AGENT"
-BROWSER_AGENT_DESC="$BROWSER_AGENT_DESC"
-ANSWERS_EOF
+# Use printf %q to safely escape arbitrary user input (quotes, $(...), backticks)
+{
+  printf 'TARGET_URL=%q\n'       "$TARGET_URL"
+  printf 'CLONE_NAME=%q\n'       "$CLONE_NAME"
+  printf 'CLOUD_PROVIDER=%q\n'   "$CLOUD_PROVIDER"
+  printf 'DEPLOYMENT_TIER=%q\n'  "$DEPLOYMENT_TIER"
+  printf 'CUSTOM_STACK_DESC=%q\n' "$CUSTOM_STACK_DESC"
+  printf 'GENERATOR=%q\n'        "$GENERATOR"
+  printf 'SKIP_DEPLOY=%q\n'      "$SKIP_DEPLOY"
+  printf 'BROWSER_AGENT=%q\n'    "$BROWSER_AGENT"
+  printf 'BROWSER_AGENT_DESC=%q\n' "$BROWSER_AGENT_DESC"
+} > .onboard-answers.tmp
 
 echo ""
 echo "--- Summary ---"
@@ -555,7 +577,12 @@ elif [ "$claude_exit" -ne 0 ]; then
 fi
 
 # ── Step 3: Validate outputs ──
-if [[ "$result" == *"<promise>ONBOARD_COMPLETE</promise>"* ]]; then
+if [[ "$result" == *"<promise>ONBOARD_FAILED</promise>"* ]]; then
+  echo ""
+  echo "=== Onboarding failed ==="
+  echo "Fix the issues above and re-run: ./onboard.sh"
+  exit 1
+elif [[ "$result" == *"<promise>ONBOARD_COMPLETE</promise>"* ]]; then
   # Verify ralph-config.json exists and has required fields
   if [ ! -f "ralph-config.json" ]; then
     echo "ERROR: ralph-config.json not found after onboarding"
@@ -722,11 +749,6 @@ Requirements:
     echo "Starting the build loop..."
     ./scripts/start.sh "$TARGET_URL"
   fi
-elif [[ "$result" == *"<promise>ONBOARD_FAILED</promise>"* ]]; then
-  echo ""
-  echo "=== Onboarding failed ==="
-  echo "Fix the issues above and re-run: ./onboard.sh"
-  exit 1
 else
   echo ""
   echo "=== Onboarding did not complete ==="

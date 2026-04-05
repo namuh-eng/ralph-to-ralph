@@ -32,7 +32,7 @@ These values are provided in your prompt context. Use them directly — do NOT a
 ## Step 2: Collect Stack Preferences (HANDLED BY BASH WRAPPER)
 
 The bash wrapper has already collected:
-- Cloud provider (aws, gcp, or azure)
+- Cloud provider (vercel, aws, gcp, azure, or custom)
 - Framework (default: nextjs)
 - Database (default: postgres)
 

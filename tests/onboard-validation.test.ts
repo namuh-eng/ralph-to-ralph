@@ -41,7 +41,7 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
       fs.writeFileSync(configPath, JSON.stringify(config));
       fs.writeFileSync(scriptPath, validationScript);
       try {
-        execSync(`python3 ${scriptPath} ${configPath}`, {
+        execSync(`python3 "${scriptPath}" "${configPath}"`, {
           encoding: "utf-8",
           stdio: ["pipe", "pipe", "pipe"],
         });
