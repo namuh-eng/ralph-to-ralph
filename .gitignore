@@ -18,6 +18,7 @@ ralph-config.json
 # Runtime state — generated during execution, not source files
 *.lock
 build-progress.txt
+.onboard-answers.tmp
 inspect-progress.txt
 qa-hints.json
 qa-report.json
