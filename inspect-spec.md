@@ -88,6 +88,51 @@ target-docs/
 
 **This phase should take 1-2 iterations MAX.** Bulk download everything, then move on to UI testing. Do NOT read pages one at a time with Ever CLI — that wastes iterations.
 
+### Phase A.1: Onboarding Flow Discovery (during docs phase)
+
+The logged-in user has likely ALREADY COMPLETED the target product's onboarding, so the onboarding UI (setup wizards, first-run guides, empty states) won't be visible during inspection. You MUST discover the onboarding flow from docs.
+
+**Why this matters:** Onboarding is a core product feature, not an auth flow. The clone needs its own onboarding experience so new users know what to do after signing up.
+
+**Step 1: Search the scraped docs**
+Look through `target-docs/` for onboarding-related content:
+- Quickstart / getting-started guides
+- Setup wizards or first-run flows
+- "Welcome" or "getting started" pages
+- Empty state descriptions (what users see before they have data)
+
+**Step 2: Use the docs search bar or AI assistant (if available)**
+Many docs sites have a search bar or AI assistant (e.g., Mintlify's assistant, GitBook's search). If the docs don't have a dedicated onboarding page, use these to ask:
+- "What is the onboarding process?"
+- "What steps does a new user complete after signing up?"
+- "What does the first-run experience look like?"
+
+Use Ever CLI to interact with the search/assistant:
+```bash
+ever snapshot   # Find the search bar or assistant button
+ever click <search-element>
+ever type "onboarding process"
+# Read the results / assistant response
+ever snapshot
+ever extract
+```
+
+Save the assistant's response to `target-docs/onboarding-flow.md`.
+
+**Step 3: Document the onboarding flow**
+Create `target-docs/onboarding-flow.md` (if not already created from Step 2) with:
+- The step-by-step onboarding sequence
+- What data/config the user provides at each step
+- What the product looks like BEFORE the user has set anything up (empty states)
+- Any skippable vs. required steps
+- What "done" looks like (when does the user land on the main dashboard?)
+
+**Step 4: Add onboarding PRD entries**
+Add PRD entries for each onboarding step with category `"onboarding"`, priority P2-P3 (right after core infra/API). These should include:
+- The onboarding wizard/flow UI
+- Empty states for core features (what users see before they have data)
+- Any first-run guided tours or tooltips
+
 ### Iteration 1: Site Map
 1. `ever snapshot` the main dashboard to see all navigation links.
 2. Map the COMPLETE site structure and save it to `sitemap.md`:
@@ -193,7 +238,7 @@ Array of feature entries, each with:
 ```json
 {
   "id": "feature-001",
-  "category": "ui|nav|auth|data|crud|search|settings|layout|interaction|sdk|developer-experience",
+  "category": "ui|nav|auth|data|crud|search|settings|layout|interaction|sdk|developer-experience|onboarding",
   "description": "Clear description of the feature",
   "page": "Which page this belongs to",
   "ui_details": "Components, layout, colors, spacing",

@@ -44,6 +44,15 @@ This is a **generic product cloning system** — the target could be any SaaS st
 - Include SDK/DX features as PRD entries with category `"sdk"` or `"developer-experience"`.
 - Save DX summary to `docs-extract.md`
 
+### Phase A.1: Onboarding Flow Discovery (during docs phase)
+
+The logged-in user has already completed onboarding, so the onboarding UI won't be visible. Discover it from docs instead:
+
+1. **Search scraped docs** for quickstart/getting-started/setup/welcome content
+2. **Use the docs search bar or AI assistant** (if the site has one) — ask about the onboarding process, first-run experience, and new user setup steps. Use Ever CLI to interact with it (`ever click` the search/assistant → `ever type` your question → `ever extract` the response)
+3. **Save findings** to `target-docs/onboarding-flow.md` — step-by-step sequence, required vs. skippable steps, empty states, what "done" looks like
+4. **Add PRD entries** with category `"onboarding"`, priority P2-P3, for each onboarding step + empty states
+
 ### Iteration 1: Map the site (if docs done but no site map)
 - Navigate all pages, map the complete site structure
 - Save to `sitemap.md`
