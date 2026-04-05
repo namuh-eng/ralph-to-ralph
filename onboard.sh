@@ -274,9 +274,6 @@ case "$CLOUD_PROVIDER" in
       read -rp "Install now? [Y/n]: " _INSTALL_CHOICE
       if [[ "${_INSTALL_CHOICE:-y}" =~ ^[Yy] ]]; then
         npm install -g vercel
-        echo ""
-        echo "Now run: vercel login"
-        read -rp "Press Enter once you've logged in..."
       else
         echo "Skipping. Re-run ./onboard.sh once Vercel CLI is installed."
         exit 1
@@ -285,9 +282,9 @@ case "$CLOUD_PROVIDER" in
     # Verify authentication (not just installation)
     if ! vercel whoami &>/dev/null; then
       echo ""
-      echo "Vercel CLI is installed but not logged in."
-      echo "  Run: vercel login"
-      read -rp "Press Enter once you've logged in..."
+      echo "Vercel CLI is installed but not logged in. Launching vercel login..."
+      echo ""
+      vercel login
       if ! vercel whoami &>/dev/null; then
         echo "Still not logged in. Re-run ./onboard.sh once authenticated."
         exit 1
@@ -305,9 +302,6 @@ case "$CLOUD_PROVIDER" in
       read -rp "Install now? [Y/n]: " _INSTALL_CHOICE
       if [[ "${_INSTALL_CHOICE:-y}" =~ ^[Yy] ]]; then
         brew install awscli
-        echo ""
-        echo "Now run: aws configure"
-        read -rp "Press Enter once you've configured AWS credentials..."
       else
         echo "Skipping. Re-run ./onboard.sh once AWS CLI is installed."
         exit 1
@@ -316,10 +310,10 @@ case "$CLOUD_PROVIDER" in
     # Verify authentication (not just installation)
     if ! aws sts get-caller-identity &>/dev/null; then
       echo ""
-      echo "AWS CLI is installed but not authenticated."
-      echo "  Run: aws configure"
+      echo "AWS CLI is installed but not authenticated. Launching aws configure..."
       echo "  You'll need your Access Key ID, Secret Access Key, and region."
-      read -rp "Press Enter once you've configured credentials..."
+      echo ""
+      aws configure
       if ! aws sts get-caller-identity &>/dev/null; then
         echo "Still not authenticated. Re-run ./onboard.sh once configured."
         exit 1
@@ -350,9 +344,14 @@ case "$CLOUD_PROVIDER" in
     # Verify authentication (not just installation)
     if ! gcloud auth print-identity-token &>/dev/null; then
       echo ""
-      echo "Google Cloud SDK is installed but not authenticated."
-      echo "  Run: gcloud auth login && gcloud config set project YOUR_PROJECT"
-      read -rp "Press Enter once you've authenticated..."
+      echo "Google Cloud SDK is installed but not authenticated. Launching gcloud auth login..."
+      echo ""
+      gcloud auth login
+      echo ""
+      read -rp "Enter your GCP project ID: " _GCP_PROJECT
+      if [ -n "$_GCP_PROJECT" ]; then
+        gcloud config set project "$_GCP_PROJECT"
+      fi
       if ! gcloud auth print-identity-token &>/dev/null; then
         echo "Still not authenticated. Re-run ./onboard.sh once configured."
         exit 1
@@ -370,9 +369,6 @@ case "$CLOUD_PROVIDER" in
       read -rp "Install now? [Y/n]: " _INSTALL_CHOICE
       if [[ "${_INSTALL_CHOICE:-y}" =~ ^[Yy] ]]; then
         brew install azure-cli
-        echo ""
-        echo "Now run: az login"
-        read -rp "Press Enter once you've logged in..."
       else
         echo "Skipping. Re-run ./onboard.sh once Azure CLI is installed."
         exit 1
@@ -381,9 +377,9 @@ case "$CLOUD_PROVIDER" in
     # Verify authentication (not just installation)
     if ! az account show &>/dev/null; then
       echo ""
-      echo "Azure CLI is installed but not logged in."
-      echo "  Run: az login"
-      read -rp "Press Enter once you've logged in..."
+      echo "Azure CLI is installed but not logged in. Launching az login..."
+      echo ""
+      az login
       if ! az account show &>/dev/null; then
         echo "Still not logged in. Re-run ./onboard.sh once authenticated."
         exit 1
