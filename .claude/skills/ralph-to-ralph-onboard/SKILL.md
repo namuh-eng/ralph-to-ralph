@@ -1,13 +1,13 @@
 ---
 name: ralph-to-ralph-onboard
-description: Interactive onboarding for the ralph-to-ralph autonomous product cloner. Researches a target product URL using web search, assesses whether it's feasible to clone, explains the required tech stack and third-party services in plain English (including what accounts need to be created), gets user confirmation, then sets up the project by generating ralph-config.json and installing dependencies. Use this skill whenever the user wants to clone a product, mentions "what should I build", "onboard", "set up ralph", "I want to clone X", or is starting the ralph-to-ralph workflow. Also trigger when the user says a product name or URL and seems to want to replicate it.
+description: Interactive onboarding for the ralph-to-ralph autonomous product cloner. Researches a target product URL using web search, assesses whether it's feasible to clone, interviews the user step-by-step about scale and existing setup, explains only the services they still need to set up, gets user confirmation, then configures the project and launches the build loop. Use this skill whenever the user wants to clone a product, mentions "what should I build", "onboard", "set up ralph", "I want to clone X", or is starting the ralph-to-ralph workflow. Also trigger when the user says a product name or URL and seems to want to replicate it.
 ---
 
 # Ralph-to-Ralph: Interactive Onboard
 
 You are guiding a user through setting up ralph-to-ralph to clone a product. Your job is to make this feel like talking to a knowledgeable friend — not filling out a form.
 
-Be conversational. Explain things in plain English. If the user doesn't know what AWS SES is, tell them what it does for THIS product before asking them to sign up for it.
+Be conversational. Explain things in plain English. Ask one question at a time. Wait for the answer before asking the next one.
 
 ---
 
@@ -23,14 +23,14 @@ If they seem unsure, help them narrow it down: "Are you thinking of the whole pr
 
 ## Phase 2: Research the Product
 
-Use WebSearch and WebFetch to learn about the target. Do this before asking any more questions — come back informed.
+Use WebSearch and WebFetch to learn about the target. Do this silently before asking any more questions — come back informed.
 
 Look for:
 - **What it does** — the one-sentence pitch
 - **Core features** — the top 5-8 things users actually do in the product
 - **Likely tech stack** — check their engineering blog, job listings, GitHub org if open source, StackShare profile
 - **Third-party services** — email, storage, search, payments, auth, analytics
-- **Scale signals** — indie tool or massive platform? This affects what's realistic to clone
+- **Scale signals** — indie tool or massive platform?
 
 Good sources in order:
 1. `{url}/llms.txt` — LLM-optimized docs if they exist
@@ -44,77 +44,133 @@ Good sources in order:
 
 ## Phase 3: Product Assessment
 
-Ralph-to-Ralph builds everything — there is no "out of scope." The pipeline loops Claude and Codex until the clone is fully working. Your job here is to help the user understand what they're getting, not to limit what gets built.
-
-Present:
+Present what you found before asking anything else.
 
 **What this is:** [1-2 sentence plain English description]
 
 **Features this clone will have:**
-- [list every meaningful feature you found — the build loop will implement them all]
+- [list every meaningful feature — the build loop will implement them all]
 
-**Complexity:** Simple / Medium / Complex — and a one-line reason why (this affects how many loop iterations to expect, not what gets built).
+**Complexity:** Simple / Medium / Complex — one-line reason (affects loop iterations, not scope)
 
-If the product is very large (e.g. "clone Notion"), acknowledge the scope and set expectations on loop count — but commit to building all of it. The pipeline is designed for this.
-
----
-
-## Phase 4: Stack Walkthrough
-
-Don't just list packages. Explain what each thing does for THIS specific product.
-
-For each service or tool the clone will need:
-- What it does in the context of this product (not a generic description)
-- Whether the user needs to create an account
-- How hard that setup is (easy = 2 clicks, medium = 15 minutes, hard = requires domain verification or billing)
-
-Example:
-> **AWS SES** — this is how we'll send emails. Resend is literally an email API on top of SES, so we're building the same thing. You'll need an AWS account (free tier works for low volume) and to verify your sending domain. Takes about 15 minutes. I'll automate the provisioning — you just need the account.
-
-> **Neon** — serverless Postgres for the database. Free tier, no setup needed beyond creating an account at neon.tech. Takes 2 minutes.
-
-Keep it to what's actually needed — don't pad with hypotheticals.
+If the product is very large (e.g. "clone Notion"), acknowledge the scope but commit to building all of it.
 
 ---
 
-## Phase 5: Gather Preferences + Confirm
+## Phase 4: Step-by-Step Interview
 
-Ask the remaining questions conversationally (don't fire them all at once):
+After presenting the assessment, interview the user one question at a time. Don't ask all of these at once — ask, wait for the answer, then ask the next.
 
-1. **Clone name** — suggest one based on the URL. "I'll call it `resend-clone` — good with that?"
+### Question 1: Scale / Intent
 
-2. **Deployment target:**
-   - "Vercel + Neon — easiest, free tier, zero ops. Best for personal use or exploring."
-   - "AWS ECS Fargate + RDS — production-ready for a team. More setup, right architecture for real traffic."
-   - "GCP or Azure if you're already in that ecosystem."
-   - "Custom — describe your own stack."
+Ask something like:
+
+> "Before I walk you through the setup — what's this for? Just pick the closest one:
+> 1. Personal / hobby — just me, low traffic, exploring the idea
+> 2. Small team — a few people, might grow
+> 3. Production / commercial — real users, needs to be reliable"
+
+Their answer changes the deployment target recommendation, how much you explain about ops, and which services are worth setting up properly vs. faking.
+
+### Question 2: Existing CLI / Account Setup
+
+Based on which services the clone will need (from your Phase 2 research), ask them to tell you what they already have. Don't list everything — only ask about the ones that actually apply to this product.
+
+Frame it like:
+
+> "Quick check — which of these do you already have set up? Just say the numbers of the ones you have, or 'none':
+> 1. Vercel CLI (`vercel whoami` works in your terminal)
+> 2. AWS CLI (`aws sts get-caller-identity` works)
+> 3. Neon account (neon.tech)
+> 4. [other service relevant to this product]
+> ..."
+
+Adjust the list to match this specific product. For example:
+- Only include AWS CLI if the clone needs SES, S3, or Lambda
+- Only include Stripe if there's payments
+- Only include Upstash Redis if there's a queue or cache layer
+- Only include Svix if there's webhook delivery
+
+### Question 3: Missing Services — Brief Clarification (if needed)
+
+If they say they're missing something that might confuse them (e.g. they don't know what Neon is), explain it in one sentence before moving on. Don't do a full lecture — just enough to decide if they want to set it up now or later.
+
+> "Neon is serverless Postgres — it's the database. Free tier, takes 2 minutes to set up at neon.tech."
+
+If they want to set it up now, wait for them. If they say "I'll do it later", note it as pending and continue.
+
+---
+
+## Phase 5: Tailored Stack Walkthrough
+
+Now walk through only the services they DON'T have set up yet. Skip anything they confirmed is ready.
+
+For each missing service:
+- What it does in the context of THIS product (not generic)
+- How to get it (link or command)
+- How hard it is: easy (2 min, just sign up), medium (15 min, need to configure something), hard (domain verification, billing required)
+
+Mark services they already have as ✓ ready — this makes the list feel like progress, not a wall of requirements.
+
+Example format:
+```
+Services needed:
+  ✓ Vercel CLI — already set up
+  ✓ Neon — already have account
+  → AWS SES — need to set up (15 min)
+    This is how we send emails. You'll need an AWS account and to verify your
+    sending domain. I'll automate the provisioning — you just need credentials.
+  → Svix — need account (2 min)
+    Handles outbound webhooks to your users. Free tier at svix.com.
+```
+
+Tailor the explanation depth to their scale answer:
+- Personal: "free tier is fine, don't worry about limits"
+- Team: "free tier to start, easy to upgrade"
+- Production: "you'll want to go through billing setup now rather than later"
+
+---
+
+## Phase 6: Final Preferences + Confirm
+
+By now you know their scale, what they have, and what they need. Just fill in the remaining gaps:
+
+1. **Clone name** — suggest one. "I'll call it `resend-clone` — good with that?"
+
+2. **Deployment target** — recommend based on their scale answer:
+   - Personal → Vercel + Neon (easiest, free tier, zero ops)
+   - Team → Vercel + Neon or AWS ECS Fargate + RDS (more setup, right for real traffic)
+   - Production → AWS ECS Fargate + RDS recommended
+   
+   But always let them override.
 
 3. **Browser agent** for inspect and QA:
    - "Ever CLI is recommended — visual AI browser agent. Install at foreverbrowsing.com."
    - "Playwright works too — already set up, no extra install."
-   - "Custom — describe your setup."
 
-4. **Deploy after build?** — "Should I deploy to production when done, or keep it local?"
+4. **Deploy after build?** — "Should I deploy when done, or keep it local?"
 
-Then show a summary and ask for go-ahead:
+Then show a summary:
 
 ```
 --- Ready to build ---
 Target:         https://resend.com
 Clone name:     resend-clone
+Scale:          Personal / hobby
 Stack:          Vercel + Neon, Next.js, Drizzle ORM
-Services:       AWS SES (need AWS account), Neon (need account)
+Already set up: Vercel CLI, Neon
+Still needed:   AWS SES (15 min), Svix (2 min)
 Browser agent:  Ever CLI
-Deploy:         Yes (vercel --prod)
+Deploy:         Local only
 
 Proceed? (yes / no / change something)
 ```
 
-Don't proceed until the user explicitly confirms.
+**Do not proceed until the user explicitly confirms.**
 
 ---
 
-## Phase 6: Implement
+## Phase 7: Implement
 
 Follow the steps in @references/onboard-prompt.md, starting from **Step 3** (Technical Architecture Scan).
 
@@ -145,7 +201,9 @@ If Ever CLI is required but not installed, show the install message before launc
 
 ## Edge cases
 
-- **Very broad product** (e.g. "clone Notion"): commit to building all of it, set expectations on iteration count. "Notion is large — the pipeline will run more loops than usual, but it will build everything."
+- **Very broad product** (e.g. "clone Notion"): commit to building all of it, set expectations on iteration count.
 - **Non-SaaS product**: explain this is designed for web SaaS, suggest a pivot.
 - **Research fails** (obscure or login-walled): work with what you can find, flag gaps, ask user to fill them in.
 - **Non-technical user**: skip package names. Say "I'll set up the email service" not "I'll install @aws-sdk/client-sesv2".
+- **User already has everything set up**: Phase 5 becomes a one-liner "You're all set — everything's ready." Skip straight to the summary.
+- **User wants to set up missing services mid-interview**: let them. Wait, then continue where you left off.
