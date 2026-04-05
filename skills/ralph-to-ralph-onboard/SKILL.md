@@ -132,10 +132,26 @@ As you work, narrate progress so the user isn't staring at a blank screen:
 - "Installing dependencies..." (run npm install in background)
 - "Rewriting config files..."
 
-When done:
-- If Ever CLI is installed: "Starting the build loop..." and run `./scripts/start.sh "{targetUrl}"`
-- If Ever CLI not installed: "Install Ever CLI at foreverbrowsing.com, then run: `./scripts/start.sh "{targetUrl}"`"
-- If using Playwright: proceed directly to `./scripts/start.sh "{targetUrl}"`
+When done, launch the build loop:
+
+```bash
+if command -v tmux &>/dev/null; then
+  tmux new-session -d -s ralph-loop -c "$(pwd)" \
+    "bash ./ralph-watchdog.sh '$TARGET_URL' 2>&1 | tee ralph-watchdog.log"
+  echo "Build loop started in tmux session 'ralph-loop'."
+  echo "Watch it: tmux attach -t ralph-loop"
+  echo "Or tail:  tail -f ralph-watchdog.log"
+else
+  echo "Run this in a new terminal tab to start the build loop:"
+  echo ""
+  echo "  ./ralph-watchdog.sh '$TARGET_URL'"
+  echo ""
+  echo "(Logs will stream to your terminal. Ctrl+C stops it.)"
+fi
+```
+
+If the browser agent requires Ever CLI and it's not installed, show that message first before attempting to launch:
+- "Install Ever CLI at foreverbrowsing.com, then start the loop."
 
 ---
 
