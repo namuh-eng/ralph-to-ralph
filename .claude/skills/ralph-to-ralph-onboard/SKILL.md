@@ -42,23 +42,20 @@ Good sources in order:
 
 ---
 
-## Phase 3: Feasibility Assessment
+## Phase 3: Product Assessment
 
-Tell the user clearly what's clonable and what isn't. Be honest — a partial clone that works is more valuable than promising everything.
+Ralph-to-Ralph builds everything — there is no "out of scope." The pipeline loops Claude and Codex until the clone is fully working. Your job here is to help the user understand what they're getting, not to limit what gets built.
 
 Present:
 
 **What this is:** [1-2 sentence plain English description]
 
-**Core features we can clone:**
-- [list the 4-6 features that are realistic to build]
+**Features this clone will have:**
+- [list every meaningful feature you found — the build loop will implement them all]
 
-**Out of scope:**
-- [ML models, real-time infra at scale, deeply integrated third-party moats]
+**Complexity:** Simple / Medium / Complex — and a one-line reason why (this affects how many loop iterations to expect, not what gets built).
 
-**Complexity:** Simple / Medium / Complex — and a one-line reason why.
-
-If the product is clearly not feasible (e.g. "clone OpenAI"), say so honestly and suggest a scoped-down version.
+If the product is very large (e.g. "clone Notion"), acknowledge the scope and set expectations on loop count — but commit to building all of it. The pipeline is designed for this.
 
 ---
 
@@ -148,7 +145,7 @@ If Ever CLI is required but not installed, show the install message before launc
 
 ## Edge cases
 
-- **Very broad product** (e.g. "clone Notion"): scope it down. "Notion is huge — I can build the core: pages, blocks, basic nesting, and a simple API. Want me to scope to the essentials?"
+- **Very broad product** (e.g. "clone Notion"): commit to building all of it, set expectations on iteration count. "Notion is large — the pipeline will run more loops than usual, but it will build everything."
 - **Non-SaaS product**: explain this is designed for web SaaS, suggest a pivot.
 - **Research fails** (obscure or login-walled): work with what you can find, flag gaps, ask user to fill them in.
 - **Non-technical user**: skip package names. Say "I'll set up the email service" not "I'll install @aws-sdk/client-sesv2".
