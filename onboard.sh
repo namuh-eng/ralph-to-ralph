@@ -110,6 +110,11 @@ if missing:
 if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
     print(f'ERROR: invalid cloudProvider: {c[\"cloudProvider\"]}', file=sys.stderr)
     sys.exit(1)
+if 'auth' in c:
+    strategy = c['auth'].get('strategy', '')
+    if strategy not in ('api-key', 'email-password', 'oauth', 'none'):
+        print(f'ERROR: invalid auth.strategy: {strategy}', file=sys.stderr)
+        sys.exit(1)
 print('Config is valid.')
 " || { echo "Config is invalid. Run ./onboard.sh --reset to start fresh."; exit 1; }
       TARGET_URL=$(python3 -c "import json; print(json.load(open('ralph-config.json'))['targetUrl'])")
@@ -476,6 +481,34 @@ case "${BROWSER_CHOICE:-1}" in
     ;;
 esac
 
+echo ""
+echo "How should users authenticate with this clone?"
+echo ""
+echo "  1) API key only  (default — simple, no user accounts)"
+echo "     Users access the dashboard with a static DASHBOARD_KEY."
+echo ""
+echo "  2) Email + password  (user accounts with sessions)"
+echo "     Login/signup pages, bcrypt hashing, session cookies."
+echo ""
+echo "  3) OAuth  (Google/GitHub login)"
+echo "     Requires OAuth app credentials from the provider."
+echo ""
+echo "  4) None  (fully open, no auth)"
+echo "     Everything is public. Only for local/private use."
+echo ""
+read -rp "Choose auth strategy [1]: " AUTH_CHOICE
+AUTH_CHOICE="${AUTH_CHOICE//[[:space:]]/}"
+case "${AUTH_CHOICE:-1}" in
+  1|api-key)        AUTH_STRATEGY="api-key" ;;
+  2|email-password) AUTH_STRATEGY="email-password" ;;
+  3|oauth)          AUTH_STRATEGY="oauth" ;;
+  4|none)           AUTH_STRATEGY="none" ;;
+  *)
+    echo "Invalid choice. Using API key."
+    AUTH_STRATEGY="api-key"
+    ;;
+esac
+
 fi  # end _SKIP_QA=false block
 
 # Save answers so a Ctrl+C re-run can skip re-entering them
@@ -489,6 +522,7 @@ GENERATOR="$GENERATOR"
 SKIP_DEPLOY="$SKIP_DEPLOY"
 BROWSER_AGENT="$BROWSER_AGENT"
 BROWSER_AGENT_DESC="$BROWSER_AGENT_DESC"
+AUTH_STRATEGY="$AUTH_STRATEGY"
 ANSWERS_EOF
 
 echo ""
@@ -498,6 +532,7 @@ echo "Clone:     $CLONE_NAME"
 echo "Cloud:     $CLOUD_PROVIDER"
 echo "Framework: Next.js 16 (default)"
 echo "Database:  Postgres (default)"
+echo "Auth:      $AUTH_STRATEGY"
 if [ "$SKIP_DEPLOY" = "true" ]; then
   _DEPLOY_LABEL="No (build locally only)"
 elif [ "$CLOUD_PROVIDER" = "vercel" ]; then
@@ -534,6 +569,7 @@ The user has already provided their answers:
 - Database: postgres (default)
 - Skip deployment: $SKIP_DEPLOY (if true, do NOT set up deployment infrastructure — only provision database and services needed for local development. If false and cloudProvider is 'vercel', deploy via 'vercel --prod' — no Docker needed. If false and cloudProvider is 'aws'/'gcp'/'azure', build a Docker image and push to the cloud container registry.)
 - Browser agent: $BROWSER_AGENT (ever = Ever CLI for visual inspection; playwright = npx playwright scripted; stagehand = @browserbasehq/stagehand AI agent; custom = $BROWSER_AGENT_DESC). Set this as 'browserAgent' in ralph-config.json.
+- Auth strategy: $AUTH_STRATEGY (api-key = static DASHBOARD_KEY; email-password = user accounts with bcrypt + iron-session; oauth = next-auth with Google/GitHub providers; none = no auth). Set this as 'auth.strategy' in ralph-config.json. If oauth, set auth.providers to ['google', 'github'].
 
 SKIP Steps 1 and 2 (already answered above). Start directly from Step 3 (Technical Architecture Scan).
 Research the target product, generate ralph-config.json, check dependencies, rewrite config files, and install packages.
@@ -574,6 +610,11 @@ if missing:
 if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
     print(f'ERROR: invalid cloudProvider: {c[\"cloudProvider\"]}', file=sys.stderr)
     sys.exit(1)
+if 'auth' in c:
+    strategy = c['auth'].get('strategy', '')
+    if strategy not in ('api-key', 'email-password', 'oauth', 'none'):
+        print(f'ERROR: invalid auth.strategy: {strategy}', file=sys.stderr)
+        sys.exit(1)
 " || exit 1
 
   # ── Write setup verification results to ralph-config.json ──
@@ -642,6 +683,30 @@ for key, label, critical in [
         status = 'fail' if critical else 'skip'
         error = 'not set in .env' if not val else 'still using placeholder value'
         setup['checks'][label] = {'envVar': key, 'status': status, 'error': error}
+
+# Auth-strategy-specific env var checks
+auth_strategy = config.get('auth', {}).get('strategy', 'api-key')
+if auth_strategy in ('email-password', 'oauth'):
+    val = env_vars.get('SESSION_SECRET', '')
+    if val:
+        setup['verified'].append('session-secret')
+        setup['checks']['session-secret'] = {'envVar': 'SESSION_SECRET', 'status': 'pass'}
+    else:
+        setup['pending'].append('session-secret')
+        setup['checks']['session-secret'] = {'envVar': 'SESSION_SECRET', 'status': 'skip', 'error': 'not set in .env (needed for session cookies)'}
+
+if auth_strategy == 'oauth':
+    for key, label in [
+        ('GOOGLE_CLIENT_ID', 'google-oauth'),
+        ('GITHUB_CLIENT_ID', 'github-oauth'),
+    ]:
+        val = env_vars.get(key, '')
+        if val:
+            setup['verified'].append(label)
+            setup['checks'][label] = {'envVar': key, 'status': 'pass'}
+        else:
+            setup['pending'].append(label)
+            setup['checks'][label] = {'envVar': key, 'status': 'skip', 'error': 'not set in .env (needed for OAuth login)'}
 
 # Browser agent check
 if browser == 'ever':

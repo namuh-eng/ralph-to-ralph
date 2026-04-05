@@ -84,17 +84,88 @@ Cloud Services:
 
 ### Credentials
 - **AWS**: Pre-configured via `~/.aws/credentials`. Use `us-east-1` for SES.
-- **`.env`**: `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ZONE_ID` (DNS), `DATABASE_URL` (Postgres), `DASHBOARD_KEY` (auth wall)
+- **`.env`**: `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ZONE_ID` (DNS), `DATABASE_URL` (Postgres), `DASHBOARD_KEY` (api-key auth), `SESSION_SECRET` (session signing), OAuth credentials (if oauth strategy)
 
 ### Deployment
 - Deploy via App Runner. Docker image → ECR → App Runner service.
 - Final iteration should deploy and output the live URL.
 
+### Auth Implementation
+
+Read `ralph-config.json` → `auth.strategy` to determine which auth approach to build. This is a **P1 priority** — implement auth before feature work so all routes can be protected from the start.
+
+#### Strategy: `api-key` (default)
+Keep the current `DASHBOARD_KEY` approach. No changes needed:
+- Read `DASHBOARD_KEY` from `.env`
+- Validate on every API request and dashboard page load
+- Return 401 if missing or invalid
+- No user accounts, no sessions, no login page
+
+#### Strategy: `email-password`
+Build real user accounts with email/password login:
+
+**Libraries:** `bcrypt` (password hashing), `iron-session` (encrypted cookie sessions)
+
+**Database tables:**
+- `users` table: `id` (uuid), `email` (unique), `passwordHash` (text), `name` (text, nullable), `createdAt`, `updatedAt`
+- `sessions` table (only if `auth.sessionStore` is `"database"`): `id`, `userId`, `expiresAt`, `createdAt`
+
+**Pages to build:**
+- `/login` — email + password form, POST to `/api/auth/login`
+- `/signup` — email + password + name form, POST to `/api/auth/signup`
+- Redirect to dashboard after successful login/signup
+
+**API routes:**
+- `POST /api/auth/signup` — validate input, hash password with `bcrypt`, create user, create session, set cookie
+- `POST /api/auth/login` — find user by email, compare password with `bcrypt.compare()`, create session, set cookie
+- `POST /api/auth/logout` — destroy session, clear cookie
+- `GET /api/auth/me` — return current user from session (for client-side checks)
+
+**Middleware:**
+- Create `src/lib/auth.ts` with `getSession()` helper using `iron-session`
+- Protect all `/api/*` routes (except `/api/auth/*`) and all dashboard pages
+- `SESSION_SECRET` from `.env` for cookie encryption
+- Session cookie: `httpOnly`, `secure` in production, `sameSite: "lax"`
+
+#### Strategy: `oauth`
+Build OAuth login with external providers:
+
+**Library:** `next-auth` (handles OAuth flow, session management, callbacks)
+
+**Setup:**
+- Read `auth.providers` array from `ralph-config.json` (e.g., `["google", "github"]`)
+- Configure `next-auth` with the chosen providers
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` from `.env` (if google)
+- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` from `.env` (if github)
+- `SESSION_SECRET` from `.env` as the `NEXTAUTH_SECRET`
+
+**Database tables:**
+- Use `next-auth`'s Drizzle adapter (`@auth/drizzle-adapter`) for user/account/session tables
+- This creates: `users`, `accounts`, `sessions`, `verification_tokens`
+
+**Pages to build:**
+- `/login` — show OAuth provider buttons (e.g., "Sign in with Google", "Sign in with GitHub")
+- No signup page needed — OAuth creates accounts automatically
+- Redirect to dashboard after successful login
+
+**API routes:**
+- `src/app/api/auth/[...nextauth]/route.ts` — next-auth catch-all handler
+
+**Middleware:**
+- Protect all `/api/*` routes (except `/api/auth/*`) and all dashboard pages
+- Use `next-auth`'s `getServerSession()` for server-side checks
+- Use `useSession()` hook for client-side checks
+
+#### Strategy: `none`
+No auth at all — everything is public:
+- No login/signup pages
+- No session management
+- No route protection
+- No auth middleware
+- All API routes and pages are publicly accessible
+
 ## Out of Scope
-- Login / signup / authentication (use API key auth wall)
 - Billing, payments, subscriptions
-- Account settings, profile management
-- OAuth / SSO
 
 ## Rules
 - **HARD STOP: Implement exactly ONE feature per invocation.** Commit, push, output promise, stop.

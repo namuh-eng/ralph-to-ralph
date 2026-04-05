@@ -50,8 +50,5 @@ Phase 1: Inspect (Claude + Ever CLI) → Phase 2: Build (Claude) → Phase 3: QA
 - **`.env`** — copy from `.env.example` and fill in your values
 
 ## Out of Scope — DO NOT build
-- Login / signup / authentication (use API key auth wall instead)
 - Paywalls, billing, subscription management
-- Account settings, profile management
-- OAuth / SSO
 - Payment processing

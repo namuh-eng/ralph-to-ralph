@@ -38,16 +38,8 @@ The bash wrapper has already collected:
 
 These values are provided in your prompt context. Use them directly — do NOT ask the user again.
 
-> **TODO (auth):** Currently the clone's API and dashboard are protected only by a
-> static `DASHBOARD_KEY` env var (simple string comparison). This is fine for local
-> dev and private deployments, but has real weaknesses: no timing-safe comparison,
-> no token rotation, no per-user access control. A future onboarding step should ask
-> the user to choose an auth strategy:
->   1. **API key only** (current default — simple, no extra setup)
->   2. **OAuth** (Google / GitHub — proper session auth, requires an OAuth app)
->   3. **None** (fully open — only appropriate for local-only use)
-> Until this is implemented, instruct the user to set a strong random `DASHBOARD_KEY`
-> and keep it out of version control.
+The bash wrapper has also collected:
+- Auth strategy (api-key, email-password, oauth, or none)
 
 ---
 
@@ -131,6 +123,11 @@ Write the file `ralph-config.json` with this exact schema:
   "dbProvider": "neon",
   "skipDeploy": false,
   "browserAgent": "ever",
+  "auth": {
+    "strategy": "api-key",
+    "providers": [],
+    "sessionStore": "jwt"
+  },
   "services": {
     "email": { "provider": "ses", "package": "@aws-sdk/client-sesv2" },
     "storage": { "provider": "s3", "package": "@aws-sdk/client-s3" },
@@ -171,9 +168,24 @@ Write the file `ralph-config.json` with this exact schema:
 
 The `setup` section is optional for backwards compatibility — older configs without it are still valid. When present, the build loop can check `setup.pending` to warn about missing prerequisites before starting.
 
+**`auth` field documentation:**
+- `strategy`: how users authenticate with the clone
+  - `"api-key"` — static DASHBOARD_KEY env var (default, simple, no user accounts)
+  - `"email-password"` — user accounts with bcrypt password hashing and session cookies
+  - `"oauth"` — OAuth login via providers like Google/GitHub (requires OAuth app credentials)
+  - `"none"` — fully open, no auth middleware
+- `providers`: array of OAuth provider names (only used when strategy is `"oauth"`)
+  - Valid values: `"google"`, `"github"`
+- `sessionStore`: how sessions are stored (only used when strategy is `"email-password"` or `"oauth"`)
+  - `"jwt"` — stateless JWT tokens (default)
+  - `"database"` — sessions stored in Postgres
+
+The `auth` section is optional for backwards compatibility — older configs without it default to `api-key` strategy.
+
 **Required fields:** `targetUrl`, `targetName`, `cloudProvider`, `framework`, `database`.
 **Valid cloudProvider values:** `vercel`, `aws`, `gcp`, `azure`, `custom`.
 **Valid deploymentTier values:** `personal`, `team`.
+**Valid auth.strategy values:** `api-key`, `email-password`, `oauth`, `none`.
 - `browserAgent`: "ever" | "playwright" | "stagehand" | "custom" — browser agent for inspect and QA phases
 
 **Stack rules:**
@@ -218,6 +230,13 @@ grep -q '^ANTHROPIC_API_KEY=.' .env 2>/dev/null
 
 # Check for DATABASE_URL (CRITICAL — needed for all clones)
 grep -q '^DATABASE_URL=.' .env 2>/dev/null
+
+# Check for SESSION_SECRET (DEFERRABLE — needed for email-password/oauth auth strategies)
+grep -q '^SESSION_SECRET=.' .env 2>/dev/null
+
+# Check for OAuth credentials (DEFERRABLE — only needed if auth.strategy is 'oauth')
+grep -q '^GOOGLE_CLIENT_ID=.' .env 2>/dev/null
+grep -q '^GITHUB_CLIENT_ID=.' .env 2>/dev/null
 ```
 If `ANTHROPIC_API_KEY` not found:
 > **Missing: Anthropic API key** (deferrable)
@@ -226,6 +245,15 @@ If `ANTHROPIC_API_KEY` not found:
 If `DATABASE_URL` not found:
 > **Missing: Database URL** (critical)
 > Add `DATABASE_URL=postgresql://...` to `.env`. The preflight script will set this up if you haven't already.
+
+If `SESSION_SECRET` not found and auth.strategy is `email-password` or `oauth`:
+> **Missing: Session secret** (deferrable)
+> Add `SESSION_SECRET=$(openssl rand -hex 32)` to `.env`. Used for signing session cookies.
+
+If auth.strategy is `oauth` and OAuth credentials not found:
+> **Missing: OAuth credentials** (deferrable)
+> Add `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` and/or `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` to `.env`.
+> Create OAuth apps at https://console.cloud.google.com/apis/credentials (Google) or https://github.com/settings/developers (GitHub).
 
 ### AWS
 ```bash

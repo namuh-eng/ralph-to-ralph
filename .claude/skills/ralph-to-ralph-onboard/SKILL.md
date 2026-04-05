@@ -72,9 +72,28 @@ Ask something like:
 
 Their answer changes the deployment target recommendation, how much you explain about ops, and which services are worth setting up properly vs. faking.
 
-### Question 2: Existing CLI / Account Setup
+### Question 2: Auth Strategy
 
-Based on which services the clone will need (from your Phase 2 research), ask them to tell you what they already have. Don't list everything — only ask about the ones that actually apply to this product.
+Ask something like:
+
+> "How should users authenticate with this clone? Pick one:
+> 1. API key only (default — simple, no user accounts. Dashboard protected by a static key)
+> 2. Email + password (real user accounts — login/signup pages, password hashing, sessions)
+> 3. OAuth (Google/GitHub login — needs OAuth app credentials)
+> 4. None (fully open — no auth at all, everything public)"
+
+Tailor the recommendation to their scale answer:
+- Personal → "API key is fine for personal use — zero setup"
+- Team → "Email + password gives you per-user access"
+- Production → "OAuth is the smoothest UX for real users"
+
+If they pick OAuth, note they'll need to create OAuth apps (Google Console / GitHub Developer Settings) — mention this will come up during setup verification.
+
+If they pick email + password, note the clone will use `bcrypt` for hashing and `iron-session` for cookies — no extra accounts needed.
+
+### Question 3: Existing CLI / Account Setup
+
+Based on which services the clone will need (from your Phase 2 research + auth choice), ask them to tell you what they already have. Don't list everything — only ask about the ones that actually apply to this product.
 
 Frame it like:
 
@@ -91,7 +110,7 @@ Adjust the list to match this specific product. For example:
 - Only include Upstash Redis if there's a queue or cache layer
 - Only include Svix if there's webhook delivery
 
-### Question 3: Missing Services — Brief Clarification (if needed)
+### Question 4: Missing Services — Brief Clarification (if needed)
 
 If they say they're missing something that might confuse them (e.g. they don't know what Neon is), explain it in one sentence before moving on. Don't do a full lecture — just enough to decide if they want to set it up now or later.
 
@@ -224,6 +243,7 @@ Then show a summary:
 Target:         https://resend.com
 Clone name:     resend-clone
 Scale:          Personal / hobby
+Auth:           API key only
 Stack:          Vercel + Neon, Next.js, Drizzle ORM
 Verified:       ✓ Vercel CLI, ✓ Neon, ✓ Node 22, ✓ Anthropic key
 Pending:        ✗ AWS SES (15 min), ✗ Svix (2 min)

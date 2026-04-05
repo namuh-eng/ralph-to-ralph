@@ -53,6 +53,33 @@ The logged-in user has already completed onboarding, so the onboarding UI won't 
 3. **Save findings** to `target-docs/onboarding-flow.md` — step-by-step sequence, required vs. skippable steps, empty states, what "done" looks like
 4. **Add PRD entries** with category `"onboarding"`, priority P2-P3, for each onboarding step + empty states
 
+### Auth Pattern Detection (during docs phase or first iteration)
+
+Identify the target product's authentication approach. This informs the build loop's auth implementation.
+
+**Look for:**
+- **Login page** — does the product have `/login`, `/signin`, or a login modal? Screenshot it.
+- **OAuth buttons** — "Sign in with Google", "Sign in with GitHub", etc. Note which providers.
+- **API key auth** — does the API docs show `Authorization: Bearer <api-key>` or similar? Note the pattern.
+- **Email/password forms** — signup with email + password fields.
+- **Magic links** — "Sign in with email" that sends a link instead of requiring a password.
+- **No auth** — fully public product with no login at all.
+
+**Save findings:**
+- Add an "Auth Pattern" section to `build-spec.md` describing what you found
+- Take screenshots of login/signup pages: `ever screenshot --output screenshots/inspect/auth-login.jpg`
+- If OAuth providers are visible, list them: `["google", "github"]`
+- Add a PRD entry with category `"auth"` and priority P1 for the auth implementation
+
+**Example `build-spec.md` auth section:**
+```
+## Auth Pattern
+The target product uses OAuth (Google + GitHub) with an email/password fallback.
+Login page: /login — shows "Sign in with Google" and "Sign in with GitHub" buttons,
+plus an email/password form below. No separate signup page — login creates accounts.
+See screenshots/inspect/auth-login.jpg for reference.
+```
+
 ### Iteration 1: Map the site (if docs done but no site map)
 - Navigate all pages, map the complete site structure
 - Save to `sitemap.md`
@@ -67,6 +94,7 @@ The logged-in user has already completed onboarding, so the onboarding UI won't 
   - Product overview and branding (`{productname}-clone`)
   - Complete design system (colors, typography, layout, shared components)
   - All data models with field types
+  - **Auth Pattern** — what auth the target product uses (OAuth providers, email/password, API keys, none) and screenshots of login/signup flows
   - **Backend Architecture** — map each feature to the cloud service that powers it (read `ralph-config.json` for the chosen provider)
   - **SDK/DX** — what SDK to build, what developer workflow to support
   - **Deployment** — deployment instructions for the chosen cloud provider (read `ralph-config.json`)

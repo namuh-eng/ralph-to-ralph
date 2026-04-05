@@ -30,6 +30,11 @@ if missing:
 if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
     print(f'ERROR: invalid cloudProvider: {c["cloudProvider"]}', file=sys.stderr)
     sys.exit(1)
+if 'auth' in c:
+    strategy = c['auth'].get('strategy', '')
+    if strategy not in ('api-key', 'email-password', 'oauth', 'none'):
+        print(f'ERROR: invalid auth.strategy: {strategy}', file=sys.stderr)
+        sys.exit(1)
 `;
 
     function runValidation(config: Record<string, unknown>): {
@@ -178,6 +183,98 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
         services: {
           email: { provider: "ses", package: "@aws-sdk/client-sesv2" },
         },
+      });
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("accepts config with auth section (email-password strategy)", () => {
+      const result = runValidation({
+        targetUrl: "https://resend.com",
+        targetName: "resend-clone",
+        cloudProvider: "vercel",
+        framework: "nextjs",
+        database: "postgres",
+        auth: {
+          strategy: "email-password",
+          providers: [],
+          sessionStore: "jwt",
+        },
+      });
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("accepts config with auth section (oauth strategy with providers)", () => {
+      const result = runValidation({
+        targetUrl: "https://example.com",
+        targetName: "example-clone",
+        cloudProvider: "vercel",
+        framework: "nextjs",
+        database: "postgres",
+        auth: {
+          strategy: "oauth",
+          providers: ["google", "github"],
+          sessionStore: "database",
+        },
+      });
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("accepts config with auth strategy 'none'", () => {
+      const result = runValidation({
+        targetUrl: "https://example.com",
+        targetName: "example-clone",
+        cloudProvider: "aws",
+        framework: "nextjs",
+        database: "postgres",
+        auth: {
+          strategy: "none",
+          providers: [],
+          sessionStore: "jwt",
+        },
+      });
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("accepts config with auth strategy 'api-key'", () => {
+      const result = runValidation({
+        targetUrl: "https://example.com",
+        targetName: "example-clone",
+        cloudProvider: "vercel",
+        framework: "nextjs",
+        database: "postgres",
+        auth: {
+          strategy: "api-key",
+          providers: [],
+          sessionStore: "jwt",
+        },
+      });
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("rejects config with invalid auth strategy", () => {
+      const result = runValidation({
+        targetUrl: "https://example.com",
+        targetName: "example-clone",
+        cloudProvider: "vercel",
+        framework: "nextjs",
+        database: "postgres",
+        auth: {
+          strategy: "magic-link",
+          providers: [],
+          sessionStore: "jwt",
+        },
+      });
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain("invalid auth.strategy");
+    });
+
+    it("accepts config without auth section (backwards compatible)", () => {
+      const result = runValidation({
+        targetUrl: "https://resend.com",
+        targetName: "resend-clone",
+        cloudProvider: "aws",
+        framework: "nextjs",
+        database: "postgres",
       });
       expect(result.exitCode).toBe(0);
     });

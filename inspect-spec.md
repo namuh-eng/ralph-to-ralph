@@ -11,14 +11,10 @@ Thoroughly inspect a target web product and produce a complete build spec (`buil
 - A `.env` file exists in the project directory with API keys for the target product. Read it to get credentials for testing API features directly (e.g., sending test requests via curl).
 
 ## Out of Scope — DO NOT include these in the PRD
-- Login / signup / authentication flows
 - Paywalls, billing, subscription management
-- Account settings, profile management
-- OAuth / SSO integrations
-- Email verification, password reset
 - Any payment processing
 
-Focus ONLY on the core product functionality — the features that make the product useful after you're already logged in.
+Focus on the core product functionality. Auth flows (login, signup, OAuth) ARE in scope — inspect them and note the auth pattern in `build-spec.md` so the build loop knows what to implement.
 
 ## SDK / Language Scope
 If the target product offers SDKs or code examples in multiple languages (Python, Ruby, Go, etc.), ONLY include TypeScript/Node.js in the PRD. Ignore all other language SDKs.
