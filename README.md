@@ -105,9 +105,29 @@ cp .env.example .env
 ./onboard.sh
 ```
 
-That's it. The onboarding script asks what product to clone, scans its docs/API, recommends a tech stack (AWS, GCP, or Azure — GCP/Azure are experimental), verifies your dependencies, configures the project, and automatically starts the build loop.
+That's it. The onboarding script asks what product to clone, scans its docs/API, recommends a tech stack, verifies your dependencies, configures the project, and automatically starts the build loop.
 
-> **Note:** `onboard.sh` calls `scripts/start.sh` automatically on success. You don't need to run `start.sh` directly.
+> **Note:** `onboard.sh` calls `ralph-watchdog.sh` automatically on success. You don't need to run it directly.
+
+#### Prefer interactive onboarding?
+
+If you'd rather have a conversation — Claude researches the product live, explains what needs to be set up (AWS SES, Neon, etc.) in plain English, and walks you through each decision — install the skill:
+
+```bash
+# Claude Code
+ln -s "$(pwd)/skills/ralph-to-ralph-onboard" ~/.claude/skills/ralph-to-ralph-onboard
+
+# Codex
+ln -s "$(pwd)/skills/ralph-to-ralph-onboard" ~/.codex/skills/ralph-to-ralph-onboard
+```
+
+Then in any Claude Code or Codex session inside this repo:
+
+```
+/ralph-to-ralph-onboard
+```
+
+Both paths produce the same `ralph-config.json` and project setup. Use `onboard.sh` for automation or if you know what you want. Use the skill for a guided, conversational experience.
 
 ## What Gets Built
 
@@ -215,6 +235,8 @@ The system is controlled by prompt files you can edit:
 ralph-to-ralph/
 ├── onboard.sh                  # Entry point — onboards then starts the loop
 ├── onboard-prompt.md           # Onboarding agent instructions
+├── skills/
+│   └── ralph-to-ralph-onboard/ # Interactive onboarding skill (Claude Code + Codex)
 ├── scripts/
 │   ├── start.sh                # Starts the build loop (called by onboard.sh)
 │   ├── preflight.sh            # Provisions cloud infrastructure
