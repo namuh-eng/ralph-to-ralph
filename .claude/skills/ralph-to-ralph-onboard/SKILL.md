@@ -101,9 +101,76 @@ If they want to set it up now, wait for them. If they say "I'll do it later", no
 
 ---
 
+## Phase 4.5: Verify Setup
+
+**Don't trust — verify.** The user said they have things set up. Now actually check.
+
+Run verification commands for each service they claimed is ready. Only check what's relevant to their chosen stack and the target product's needs.
+
+### Verification commands by service
+
+| Service | Verification command | What "pass" looks like |
+|---------|---------------------|----------------------|
+| Node.js | `node -v` | Version 20+ |
+| Vercel CLI | `vercel whoami` | Returns a username (not an error) |
+| AWS CLI | `aws sts get-caller-identity` | Returns account ID JSON |
+| GCP CLI | `gcloud auth print-identity-token` | Returns a token |
+| Azure CLI | `az account show` | Returns subscription JSON |
+| Neon | Check `.env` for `DATABASE_URL` containing `neon.tech` | Key exists and is non-empty |
+| Anthropic API key | Check `.env` for `ANTHROPIC_API_KEY` | Key exists and is non-empty |
+| Cloudflare | Check `.env` for `CLOUDFLARE_API_TOKEN` | Key exists and is non-empty |
+| Ever CLI | `ever --version` | Returns a version |
+| Docker | `docker info` | Daemon is running |
+
+### How to run verification
+
+1. Only check services that are relevant to THIS clone (based on Phase 2 research + chosen stack)
+2. Run all relevant checks using the Bash tool
+3. Collect results into a pass/fail list
+4. Present results clearly:
+
+```
+Verifying your setup...
+
+  ✓ Node.js — v22.1.0
+  ✓ Vercel CLI — logged in as ashley
+  ✓ Neon — DATABASE_URL found in .env
+  ✗ Anthropic API key — ANTHROPIC_API_KEY not found in .env
+  ✓ Ever CLI — v1.2.0
+```
+
+### Handling failures
+
+For each failed check, provide a **one-line fix** immediately:
+
+> `✗ Anthropic API key — not found in .env`
+> Fix: Add `ANTHROPIC_API_KEY=sk-ant-...` to your `.env` file. Get a key at console.anthropic.com.
+
+Then ask: **"Want to fix these now, or continue and handle them later?"**
+
+**Critical failures** (must fix before proceeding):
+- Cloud CLI not authenticated (build loop can't provision infrastructure)
+- Node.js missing or < 20 (nothing will run)
+
+**Deferrable failures** (can fix later, but flag them):
+- `ANTHROPIC_API_KEY` missing (only needed if clone has AI features)
+- `CLOUDFLARE_API_TOKEN` missing (only needed for CDN/edge caching)
+- Ever CLI missing (only needed for inspect phase, can use Playwright instead)
+
+If the user wants to fix now, wait for them and re-run the failed checks.
+If they want to continue, note the pending items — they'll appear in the summary.
+
+### Write results to config
+
+After verification, write the results into `ralph-config.json`'s `setup` section. Use the Bash tool to run a Python snippet that creates the `setup` object with `verified`, `pending`, and `checks` fields (see `onboard-prompt.md` Step 5 for the schema). This ensures the build loop knows what's ready and what's still pending.
+
+If running via `onboard.sh` instead of the conversational skill, this write happens automatically after config generation.
+
+---
+
 ## Phase 5: Tailored Stack Walkthrough
 
-Now walk through only the services they DON'T have set up yet. Skip anything they confirmed is ready.
+Now walk through only the services they DON'T have set up yet. Skip anything that passed verification.
 
 For each missing service:
 - What it does in the context of THIS product (not generic)
@@ -158,13 +225,15 @@ Target:         https://resend.com
 Clone name:     resend-clone
 Scale:          Personal / hobby
 Stack:          Vercel + Neon, Next.js, Drizzle ORM
-Already set up: Vercel CLI, Neon
-Still needed:   AWS SES (15 min), Svix (2 min)
+Verified:       ✓ Vercel CLI, ✓ Neon, ✓ Node 22, ✓ Anthropic key
+Pending:        ✗ AWS SES (15 min), ✗ Svix (2 min)
 Browser agent:  Ever CLI
 Deploy:         Local only
 
 Proceed? (yes / no / change something)
 ```
+
+The summary must reflect actual verification results from Phase 4.5 — show ✓ for verified services and ✗ for pending ones.
 
 **Do not proceed until the user explicitly confirms.**
 
@@ -205,5 +274,5 @@ If Ever CLI is required but not installed, show the install message before launc
 - **Non-SaaS product**: explain this is designed for web SaaS, suggest a pivot.
 - **Research fails** (obscure or login-walled): work with what you can find, flag gaps, ask user to fill them in.
 - **Non-technical user**: skip package names. Say "I'll set up the email service" not "I'll install @aws-sdk/client-sesv2".
-- **User already has everything set up**: Phase 5 becomes a one-liner "You're all set — everything's ready." Skip straight to the summary.
+- **User already has everything set up**: Phase 4.5 verifies everything passes, Phase 5 becomes a one-liner "You're all set — everything's verified and ready." Skip straight to the summary.
 - **User wants to set up missing services mid-interview**: let them. Wait, then continue where you left off.

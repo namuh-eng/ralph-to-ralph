@@ -145,13 +145,34 @@ Write the file `ralph-config.json` with this exact schema:
     "authPattern": "",
     "dataModel": "",
     "summary": ""
+  },
+  "setup": {
+    "verified": ["node", "vercel-cli", "neon"],
+    "pending": ["anthropic-api-key"],
+    "checks": {
+      "node": { "command": "node -v", "status": "pass", "detail": "v22.1.0" },
+      "vercel-cli": { "command": "vercel whoami", "status": "pass", "detail": "ashley" },
+      "neon": { "envVar": "DATABASE_URL", "status": "pass" },
+      "anthropic-api-key": { "envVar": "ANTHROPIC_API_KEY", "status": "fail", "error": "not found in .env" }
+    }
   }
 }
 ```
 
+**`setup` field documentation:**
+- `verified`: array of check names that passed — these services are ready for the build loop
+- `pending`: array of check names that failed or were skipped — the build loop should warn about these
+- `checks`: map of check name → verification result
+  - `command`: the shell command that was run (for CLI checks)
+  - `envVar`: the environment variable that was checked (for .env checks)
+  - `status`: `"pass"`, `"fail"`, or `"skip"` (skipped because not relevant to this clone)
+  - `detail`: human-readable output from the check (e.g., version number, username)
+  - `error`: human-readable error message if status is `"fail"`
+
+The `setup` section is optional for backwards compatibility — older configs without it are still valid. When present, the build loop can check `setup.pending` to warn about missing prerequisites before starting.
+
 **Required fields:** `targetUrl`, `targetName`, `cloudProvider`, `framework`, `database`.
-**Valid cloudProvider values:** `aws`, `gcp`, `azure`.
-**Valid cloudProvider values:** `vercel`, `aws`, `gcp`, `azure`.
+**Valid cloudProvider values:** `vercel`, `aws`, `gcp`, `azure`, `custom`.
 **Valid deploymentTier values:** `personal`, `team`.
 - `browserAgent`: "ever" | "playwright" | "stagehand" | "custom" — browser agent for inspect and QA phases
 
@@ -171,15 +192,40 @@ If `skipDeploy` is `true`:
 
 ---
 
-## Step 6: Check Dependencies
+## Step 6: Check Dependencies and Populate Setup
 
-Run these checks based on the chosen cloud provider. If ANY check fails, output a clear error message with setup instructions and stop.
+Run these checks based on the chosen cloud provider. Record results in the `setup` section of `ralph-config.json` as you go.
+
+For each check:
+1. Run the command
+2. Record the result in `setup.checks` with status `"pass"` or `"fail"`
+3. Add the check name to `setup.verified` (if pass) or `setup.pending` (if fail)
+4. If a check fails, include the `error` field with a human-readable message
+
+If ANY **critical** check fails (cloud CLI, Node.js), output a clear error message with setup instructions and stop.
+If only **deferrable** checks fail (ANTHROPIC_API_KEY, CLOUDFLARE_API_TOKEN), log them as pending and continue.
 
 ### Common (all providers)
 ```bash
-node --version    # Must be 20+
-npm --version     # Must exist
+node --version    # Must be 20+ (CRITICAL)
+npm --version     # Must exist (CRITICAL)
 ```
+
+### Environment variables (check .env file)
+```bash
+# Check for ANTHROPIC_API_KEY (DEFERRABLE — only needed if clone has AI features)
+grep -q '^ANTHROPIC_API_KEY=.' .env 2>/dev/null
+
+# Check for DATABASE_URL (CRITICAL — needed for all clones)
+grep -q '^DATABASE_URL=.' .env 2>/dev/null
+```
+If `ANTHROPIC_API_KEY` not found:
+> **Missing: Anthropic API key** (deferrable)
+> Add `ANTHROPIC_API_KEY=sk-ant-...` to `.env`. Get a key at https://console.anthropic.com
+
+If `DATABASE_URL` not found:
+> **Missing: Database URL** (critical)
+> Add `DATABASE_URL=postgresql://...` to `.env`. The preflight script will set this up if you haven't already.
 
 ### AWS
 ```bash
@@ -222,8 +268,20 @@ docker info         # Only if skipDeploy is false
 ```
 Skip these checks entirely if `skipDeploy` is `true`.
 
-**If any required check fails:**
-Output a clear error listing ALL missing dependencies at once (don't stop at the first one), then output `<promise>ONBOARD_FAILED</promise>` and stop.
+### Browser agent
+```bash
+# Only if browserAgent is "ever"
+ever --version    # Ever CLI must be installed (DEFERRABLE — can fall back to Playwright)
+```
+
+**If any CRITICAL check fails:**
+Output a clear error listing ALL missing critical dependencies at once (don't stop at the first one), then output `<promise>ONBOARD_FAILED</promise>` and stop.
+
+**If only DEFERRABLE checks fail:**
+Log them as `"pending"` in `setup.pending`, continue with onboarding, and include a warning in the final summary (Step 9).
+
+**After all checks complete:**
+Update `ralph-config.json` with the `setup` section containing all verification results. This is the source of truth for what's ready and what's still needed.
 
 ---
 

@@ -262,7 +262,7 @@ case "${STACK_CHOICE:-1}" in
     ;;
 esac
 
-# ── Verify cloud CLI is installed before the long research step ──
+# ── Verify cloud CLI is installed AND authenticated before the long research step ──
 case "$CLOUD_PROVIDER" in
   vercel)
     if ! command -v vercel &>/dev/null; then
@@ -282,6 +282,18 @@ case "$CLOUD_PROVIDER" in
         exit 1
       fi
     fi
+    # Verify authentication (not just installation)
+    if ! vercel whoami &>/dev/null; then
+      echo ""
+      echo "Vercel CLI is installed but not logged in."
+      echo "  Run: vercel login"
+      read -rp "Press Enter once you've logged in..."
+      if ! vercel whoami &>/dev/null; then
+        echo "Still not logged in. Re-run ./onboard.sh once authenticated."
+        exit 1
+      fi
+    fi
+    echo "Vercel CLI: logged in as $(vercel whoami 2>/dev/null)"
     ;;
   aws)
     if ! command -v aws &>/dev/null; then
@@ -301,6 +313,19 @@ case "$CLOUD_PROVIDER" in
         exit 1
       fi
     fi
+    # Verify authentication (not just installation)
+    if ! aws sts get-caller-identity &>/dev/null; then
+      echo ""
+      echo "AWS CLI is installed but not authenticated."
+      echo "  Run: aws configure"
+      echo "  You'll need your Access Key ID, Secret Access Key, and region."
+      read -rp "Press Enter once you've configured credentials..."
+      if ! aws sts get-caller-identity &>/dev/null; then
+        echo "Still not authenticated. Re-run ./onboard.sh once configured."
+        exit 1
+      fi
+    fi
+    echo "AWS CLI: authenticated ($(aws sts get-caller-identity --query 'Account' --output text 2>/dev/null))"
     ;;
   gcp)
     if ! command -v gcloud &>/dev/null; then
@@ -322,6 +347,18 @@ case "$CLOUD_PROVIDER" in
         exit 1
       fi
     fi
+    # Verify authentication (not just installation)
+    if ! gcloud auth print-identity-token &>/dev/null; then
+      echo ""
+      echo "Google Cloud SDK is installed but not authenticated."
+      echo "  Run: gcloud auth login && gcloud config set project YOUR_PROJECT"
+      read -rp "Press Enter once you've authenticated..."
+      if ! gcloud auth print-identity-token &>/dev/null; then
+        echo "Still not authenticated. Re-run ./onboard.sh once configured."
+        exit 1
+      fi
+    fi
+    echo "GCP CLI: authenticated"
     ;;
   azure)
     if ! command -v az &>/dev/null; then
@@ -341,11 +378,62 @@ case "$CLOUD_PROVIDER" in
         exit 1
       fi
     fi
+    # Verify authentication (not just installation)
+    if ! az account show &>/dev/null; then
+      echo ""
+      echo "Azure CLI is installed but not logged in."
+      echo "  Run: az login"
+      read -rp "Press Enter once you've logged in..."
+      if ! az account show &>/dev/null; then
+        echo "Still not logged in. Re-run ./onboard.sh once authenticated."
+        exit 1
+      fi
+    fi
+    echo "Azure CLI: authenticated ($(az account show --query 'name' --output tsv 2>/dev/null))"
     ;;
   custom)
     echo "Custom stack: will generate preflight using $GENERATOR."
     ;;
 esac
+
+# ── Verify .env has required keys ──
+echo ""
+echo "--- Checking .env ---"
+_ENV_WARNINGS=()
+
+# Create .env from example if it doesn't exist
+if [ ! -f ".env" ]; then
+  if [ -f ".env.example" ]; then
+    cp .env.example .env
+    echo "Created .env from .env.example — fill in your values."
+  else
+    touch .env
+    echo "Created empty .env — you'll need to add keys."
+  fi
+fi
+
+# Check ANTHROPIC_API_KEY (deferrable — only needed if clone has AI features)
+if ! grep -q '^ANTHROPIC_API_KEY=.\+' .env 2>/dev/null || grep -q '^ANTHROPIC_API_KEY=sk-ant-your-key-here' .env 2>/dev/null; then
+  _ENV_WARNINGS+=("ANTHROPIC_API_KEY not set in .env (needed if clone has AI features)")
+  echo "  Warning: ANTHROPIC_API_KEY not found or still using placeholder in .env"
+  echo "    Get a key at https://console.anthropic.com"
+  echo "    Add to .env: ANTHROPIC_API_KEY=sk-ant-api03-..."
+fi
+
+# Check DASHBOARD_KEY (deferrable — simple auth for admin dashboard)
+if ! grep -q '^DASHBOARD_KEY=.\+' .env 2>/dev/null || grep -q '^DASHBOARD_KEY=your-dashboard-key' .env 2>/dev/null; then
+  _ENV_WARNINGS+=("DASHBOARD_KEY not set or still using placeholder in .env")
+  echo "  Warning: DASHBOARD_KEY not configured in .env"
+  echo "    Set a strong random value: DASHBOARD_KEY=\$(openssl rand -hex 32)"
+fi
+
+if [ ${#_ENV_WARNINGS[@]} -eq 0 ]; then
+  echo "  All .env keys present"
+else
+  echo ""
+  echo "  ${#_ENV_WARNINGS[@]} warning(s) above — these are deferrable, continuing."
+  echo "  You can fix them later before starting the build loop."
+fi
 
 echo ""
 read -rp "Deploy to production after build? [Y/n]: " DEPLOY_CHOICE
@@ -491,6 +579,104 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
     print(f'ERROR: invalid cloudProvider: {c[\"cloudProvider\"]}', file=sys.stderr)
     sys.exit(1)
 " || exit 1
+
+  # ── Write setup verification results to ralph-config.json ──
+  python3 -c "
+import json, subprocess, os
+
+config = json.load(open('ralph-config.json'))
+provider = config.get('cloudProvider', '')
+browser = config.get('browserAgent', 'ever')
+setup = {'verified': [], 'pending': [], 'checks': {}}
+
+# Node.js check
+try:
+    ver = subprocess.check_output(['node', '-v'], stderr=subprocess.DEVNULL).decode().strip()
+    major = int(ver.lstrip('v').split('.')[0])
+    if major >= 20:
+        setup['verified'].append('node')
+        setup['checks']['node'] = {'command': 'node -v', 'status': 'pass', 'detail': ver}
+    else:
+        setup['pending'].append('node')
+        setup['checks']['node'] = {'command': 'node -v', 'status': 'fail', 'error': f'version {ver} < 20'}
+except Exception:
+    setup['pending'].append('node')
+    setup['checks']['node'] = {'command': 'node -v', 'status': 'fail', 'error': 'not found'}
+
+# Cloud CLI auth check
+cli_checks = {
+    'vercel': ('vercel-cli', ['vercel', 'whoami']),
+    'aws': ('aws-cli', ['aws', 'sts', 'get-caller-identity']),
+    'gcp': ('gcp-cli', ['gcloud', 'auth', 'print-identity-token']),
+    'azure': ('azure-cli', ['az', 'account', 'show']),
+}
+if provider in cli_checks:
+    name, cmd = cli_checks[provider]
+    try:
+        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
+        setup['verified'].append(name)
+        detail = out.split('\n')[0][:80] if out else 'authenticated'
+        setup['checks'][name] = {'command': ' '.join(cmd), 'status': 'pass', 'detail': detail}
+    except Exception:
+        setup['pending'].append(name)
+        setup['checks'][name] = {'command': ' '.join(cmd), 'status': 'fail', 'error': 'not authenticated'}
+
+# .env key checks
+env_vars = {}
+if os.path.exists('.env'):
+    with open('.env') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                k, v = line.split('=', 1)
+                env_vars[k] = v
+
+for key, label, critical in [
+    ('ANTHROPIC_API_KEY', 'anthropic-api-key', False),
+    ('DATABASE_URL', 'database-url', True),
+    ('DASHBOARD_KEY', 'dashboard-key', False),
+]:
+    placeholder_values = {'your-dashboard-key', 'sk-ant-your-key-here', 'postgresql://user:password@host:5432/dbname', ''}
+    val = env_vars.get(key, '')
+    if val and val not in placeholder_values:
+        setup['verified'].append(label)
+        setup['checks'][label] = {'envVar': key, 'status': 'pass'}
+    else:
+        setup['pending'].append(label)
+        status = 'fail' if critical else 'skip'
+        error = 'not set in .env' if not val else 'still using placeholder value'
+        setup['checks'][label] = {'envVar': key, 'status': status, 'error': error}
+
+# Browser agent check
+if browser == 'ever':
+    try:
+        subprocess.check_output(['ever', '--version'], stderr=subprocess.DEVNULL)
+        setup['verified'].append('ever-cli')
+        setup['checks']['ever-cli'] = {'command': 'ever --version', 'status': 'pass'}
+    except Exception:
+        setup['pending'].append('ever-cli')
+        setup['checks']['ever-cli'] = {'command': 'ever --version', 'status': 'skip', 'error': 'not installed (can use Playwright instead)'}
+
+config['setup'] = setup
+with open('ralph-config.json', 'w') as f:
+    json.dump(config, f, indent=2)
+    f.write('\n')
+
+# Print summary
+print('')
+print('--- Setup Verification ---')
+for name in setup['verified']:
+    check = setup['checks'][name]
+    detail = check.get('detail', '')
+    print(f'  ✓ {name}' + (f' — {detail}' if detail else ''))
+for name in setup['pending']:
+    check = setup['checks'][name]
+    error = check.get('error', 'unknown')
+    print(f'  ✗ {name} — {error}')
+if not setup['pending']:
+    print('  All checks passed!')
+print('')
+"
 
   # ── Codex preflight generation (custom stack, generator=codex) ──
   if [ "$CLOUD_PROVIDER" = "custom" ] && [ "$GENERATOR" = "codex" ]; then

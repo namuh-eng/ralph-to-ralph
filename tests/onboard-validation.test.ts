@@ -27,7 +27,7 @@ missing = [k for k in required if k not in c]
 if missing:
     print(f'ERROR: ralph-config.json missing required fields: {missing}', file=sys.stderr)
     sys.exit(1)
-if c['cloudProvider'] not in ('aws', 'gcp', 'azure'):
+if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
     print(f'ERROR: invalid cloudProvider: {c["cloudProvider"]}', file=sys.stderr)
     sys.exit(1)
 `;
@@ -116,6 +116,70 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure'):
       });
       expect(result.exitCode).not.toBe(0);
       expect(result.stderr).toContain("invalid cloudProvider");
+    });
+
+    it("accepts vercel as a valid cloud provider", () => {
+      const result = runValidation({
+        targetUrl: "https://mintlify.com",
+        targetName: "mintlify-clone",
+        cloudProvider: "vercel",
+        framework: "nextjs",
+        database: "postgres",
+      });
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("accepts custom as a valid cloud provider", () => {
+      const result = runValidation({
+        targetUrl: "https://example.com",
+        targetName: "example-clone",
+        cloudProvider: "custom",
+        framework: "nextjs",
+        database: "postgres",
+      });
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("accepts config with setup section", () => {
+      const result = runValidation({
+        targetUrl: "https://resend.com",
+        targetName: "resend-clone",
+        cloudProvider: "vercel",
+        framework: "nextjs",
+        database: "postgres",
+        setup: {
+          verified: ["node", "vercel-cli"],
+          pending: ["anthropic-api-key"],
+          checks: {
+            node: { command: "node -v", status: "pass", detail: "v22.1.0" },
+            "vercel-cli": {
+              command: "vercel whoami",
+              status: "pass",
+              detail: "ashley",
+            },
+            "anthropic-api-key": {
+              envVar: "ANTHROPIC_API_KEY",
+              status: "fail",
+              error: "not found in .env",
+            },
+          },
+        },
+      });
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("accepts config without setup section (backwards compatible)", () => {
+      const result = runValidation({
+        targetUrl: "https://resend.com",
+        targetName: "resend-clone",
+        cloudProvider: "aws",
+        framework: "nextjs",
+        database: "postgres",
+        services: {
+          email: { provider: "ses", package: "@aws-sdk/client-sesv2" },
+        },
+      });
+      expect(result.exitCode).toBe(0);
     });
   });
 
