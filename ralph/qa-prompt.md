@@ -17,8 +17,8 @@ The original product is your **source of truth**.
 - `qa-report.json`: Your test results — tracks what's been tested and bugs found. Read this first to see what's already been QA'd.
 - `qa-hints.json`: Written by the build agent — lists what tests were written and what **needs deeper QA**. Focus your testing on the `needs_deeper_qa` items.
 - `ever-cli-reference.md`: Ever CLI command reference.
-- `screenshots/inspect/`: Reference screenshots from the original.
-- `screenshots/qa/`: Save your QA screenshots here.
+- `ralph/screenshots/inspect/`: Reference screenshots from the original.
+- `ralph/screenshots/qa/`: Save your QA screenshots here.
 - `target-docs/`: Extracted docs for verifying API correctness.
 
 ## This Iteration
@@ -41,7 +41,7 @@ Also run full `make test-e2e` to catch cross-feature regressions.
 7. Test the feature thoroughly:
    - Navigate to the relevant page, `ever snapshot`
    - Follow `steps` from prd.json to verify each acceptance criterion
-   - Compare against `screenshots/inspect/` and `behavior` field
+   - Compare against `ralph/screenshots/inspect/` and `behavior` field
    - Test edge cases: empty inputs, rapid clicks, unexpected data
 
 <important if="category is infrastructure, crud, or sdk">

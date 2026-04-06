@@ -142,13 +142,13 @@ Add PRD entries for each onboarding step with category `"onboarding"`, priority 
    - Page type: list view, detail view, form, settings, etc.
 3. Record the overall layout pattern (sidebar + content, top nav + pages, etc.).
 4. Record the tech stack if detectable (check page source, network requests).
-5. Take a screenshot of the main dashboard: `ever screenshot --output screenshots/home.jpg`
+5. Take a screenshot of the main dashboard: `ever screenshot --output ralph/screenshots/home.jpg`
 
 ### Iterations 2-N: Feature-by-Feature Deep Dive (USE Ever CLI to test UI)
 For each page/feature (one per iteration):
 1. Navigate to the page.
 2. `ever snapshot` to see all interactive elements.
-3. `ever screenshot --output screenshots/<page-name>.jpg`
+3. `ever screenshot --output ralph/screenshots/<page-name>.jpg`
 4. **Actively test the feature with Ever CLI:**
    - Click buttons, open modals, expand dropdowns
    - Fill forms with test data, observe validation and responses
@@ -158,7 +158,7 @@ For each page/feature (one per iteration):
    - Test pagination/infinite scroll
    - Note animations, transitions, toasts/notifications
    - Use API keys from `.env` to test API features via `curl`
-5. Screenshot key states: `screenshots/<page-name>-<state>.jpg`
+5. Screenshot key states: `ralph/screenshots/<page-name>-<state>.jpg`
 6. Cross-reference what you see in the UI with what the docs say — the docs describe the feature, the UI shows how it's presented.
 
 ### When to use what:
@@ -277,7 +277,7 @@ Small PRD items = small commits = tight feedback loops = working product.
 ### build-spec.md
 A comprehensive spec document that gives the build loop everything it needs to clone the product. This is the PRIMARY input for the build phase.
 
-### screenshots/
+### ralph/screenshots/
 Visual reference for every page and key interaction state.
 
 ### inspect-progress.txt

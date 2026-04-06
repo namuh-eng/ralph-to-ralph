@@ -20,7 +20,7 @@ touch inspect-progress.txt
 if [ ! -f "prd.json" ]; then
   echo '[]' > prd.json
 fi
-mkdir -p screenshots
+mkdir -p ralph/screenshots
 
 # Start browser agent session
 if [ "$BROWSER_AGENT" = "ever" ]; then

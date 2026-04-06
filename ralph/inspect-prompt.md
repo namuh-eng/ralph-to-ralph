@@ -59,7 +59,7 @@ The logged-in user has already completed onboarding, so the onboarding UI won't 
 
 ### Subsequent iterations: Deep dive one page/feature
 - Pick the next uninspected page/feature from `sitemap.md`
-- **Take screenshots**: `ever screenshot --output screenshots/inspect/<page-name>.jpg` for each page
+- **Take screenshots**: `ever screenshot --output ralph/screenshots/inspect/<page-name>.jpg` for each page
 - Inspect thoroughly: click, type, submit, test every interaction
 
 ### Final iteration: Finalize build-spec.md + PRD dependencies

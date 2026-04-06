@@ -45,9 +45,9 @@ src/types/         — TypeScript types
 tests/             — Unit tests (Vitest)
 tests/e2e/         — E2E tests (Playwright)
 packages/sdk/      — SDK package (created by build agent if target has SDK)
-screenshots/inspect/ — Original product screenshots
-screenshots/build/   — Build verification screenshots
-screenshots/qa/      — QA evidence screenshots
+ralph/screenshots/inspect/ — Original product screenshots
+ralph/screenshots/build/   — Build verification screenshots
+ralph/screenshots/qa/      — QA evidence screenshots
 scripts/           — Infrastructure and deploy scripts
 ```
 
