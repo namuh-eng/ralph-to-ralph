@@ -164,7 +164,7 @@ If they want to continue, note the pending items — they'll appear in the summa
 
 After verification, write the results into `ralph-config.json`'s `setup` section. Use the Bash tool to run a Python snippet that creates the `setup` object with `verified`, `pending`, and `checks` fields (see `onboard-prompt.md` Step 5 for the schema). This ensures the build loop knows what's ready and what's still pending.
 
-If running via `onboard.sh` instead of the conversational skill, this write happens automatically after config generation.
+If running via `ralph/onboard.sh` instead of the conversational skill, this write happens automatically after config generation.
 
 ---
 
@@ -255,12 +255,12 @@ When done, launch the build loop:
 ```bash
 if command -v tmux &>/dev/null; then
   tmux new-session -d -s ralph-loop -c "$(pwd)" \
-    "bash ./ralph-watchdog.sh '$TARGET_URL' 2>&1 | tee ralph-watchdog.log"
+    "bash ./ralph/ralph-watchdog.sh '$TARGET_URL' 2>&1 | tee ralph-watchdog.log"
   echo "Build loop started in tmux session 'ralph-loop'."
   echo "Watch: tmux attach -t ralph-loop  |  Tail: tail -f ralph-watchdog.log"
 else
   echo "Run this in a new terminal tab:"
-  echo "  ./ralph-watchdog.sh '$TARGET_URL'"
+  echo "  ./ralph/ralph-watchdog.sh '$TARGET_URL'"
 fi
 ```
 

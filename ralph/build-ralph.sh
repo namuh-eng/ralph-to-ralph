@@ -2,11 +2,11 @@
 # Phase 2: Build a clone from the generated PRD and build spec
 # Each iteration = exactly 1 feature (enforced by prompt + NEXT/COMPLETE promises)
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 ITERATIONS="${1:-999}"
 
-[ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./onboard.sh first."; exit 1; }
+[ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./ralph/onboard.sh first."; exit 1; }
 
 if [ ! -f "prd.json" ]; then
   echo "Error: prd.json not found. Run inspect-ralph.sh first."
@@ -44,7 +44,7 @@ for ((i=1; i<=$ITERATIONS; i++)); do
   fi
 
   result=$(timeout 1200 claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
-"@build-prompt.md @pre-setup.md @build-spec.md @prd.json @build-progress.txt @CLAUDE.md @ralph-config.json
+"@ralph/build-prompt.md @ralph/pre-setup.md @build-spec.md @prd.json @build-progress.txt @CLAUDE.md @ralph-config.json
 
 ITERATION: $i of $ITERATIONS
 PROGRESS: $PASSES/$TOTAL features passed

@@ -29,4 +29,4 @@ touch build-progress.txt inspect-progress.txt
 
 echo "Starting watchdog..."
 echo "=================================="
-./ralph-watchdog.sh "$TARGET_URL"
+./ralph/ralph-watchdog.sh "$TARGET_URL"

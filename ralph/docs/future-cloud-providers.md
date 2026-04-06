@@ -49,11 +49,11 @@ Cloud providers to add beyond the current AWS / GCP / Azure options. Each must h
 ## Implementation Pattern
 
 For each new provider, you need:
-1. Add the option to `onboard.sh` cloud provider menu
-2. Add CLI + auth checks to `onboard-prompt.md` Step 6
-3. Add a preflight template to `onboard-prompt.md` (Preflight Script Templates section)
-4. Add package.json dependencies per provider to `onboard-prompt.md` Step 7c
-5. Add the cloud name to the validation in `onboard.sh` (`python3 -c` schema check)
+1. Add the option to `ralph/onboard.sh` cloud provider menu
+2. Add CLI + auth checks to `ralph/onboard-prompt.md` Step 6
+3. Add a preflight template to `ralph/onboard-prompt.md` (Preflight Script Templates section)
+4. Add package.json dependencies per provider to `ralph/onboard-prompt.md` Step 7c
+5. Add the cloud name to the validation in `ralph/onboard.sh` (`python3 -c` schema check)
 6. Test end-to-end
 
 ## Priority Order

@@ -102,7 +102,7 @@ cp .env.example .env
 # Edit .env with your credentials
 
 # Onboard — collects target info, researches the product, configures your stack
-./onboard.sh
+./ralph/onboard.sh
 ```
 
 That's it. The onboarding script asks what product to clone, scans its docs/API, recommends a tech stack, verifies your dependencies, configures the project, and automatically starts the build loop.
@@ -223,24 +223,24 @@ The system is controlled by prompt files you can edit:
 
 ```
 ralph-to-ralph/
-├── onboard.sh                  # Entry point — onboards then starts the loop
-├── onboard-prompt.md           # Onboarding agent instructions
+├── ralph/onboard.sh                  # Entry point — onboards then starts the loop
+├── ralph/onboard-prompt.md           # Onboarding agent instructions
 ├── skills/
 │   └── ralph-to-ralph-onboard/ # Interactive onboarding skill (Claude Code + Codex)
 ├── scripts/
 │   ├── start.sh                # Starts the build loop (called by onboard.sh)
 │   ├── preflight.sh            # Provisions cloud infrastructure
 │   └── generate-demo-keys.sh   # Generate API keys for demos
-├── ralph-watchdog.sh           # Orchestrator (inspect → build → QA loop)
-├── inspect-ralph.sh            # Phase 1 runner
-├── build-ralph.sh              # Phase 2 runner
-├── qa-ralph.sh                 # Phase 3 runner
-├── inspect-prompt.md           # Inspect agent instructions
-├── inspect-spec.md             # Inspection strategy
-├── build-prompt.md             # Build agent instructions
-├── qa-prompt.md                # QA agent instructions
-├── pre-setup.md                # Pre-configured setup (read by agents)
-├── ever-cli-reference.md       # Ever CLI command reference
+├── ralph/ralph-watchdog.sh           # Orchestrator (inspect → build → QA loop)
+├── ralph/inspect-ralph.sh            # Phase 1 runner
+├── ralph/build-ralph.sh              # Phase 2 runner
+├── ralph/qa-ralph.sh                 # Phase 3 runner
+├── ralph/inspect-prompt.md           # Inspect agent instructions
+├── ralph/inspect-spec.md             # Inspection strategy
+├── ralph/build-prompt.md             # Build agent instructions
+├── ralph/qa-prompt.md                # QA agent instructions
+├── ralph/pre-setup.md                # Pre-configured setup (read by agents)
+├── ralph/ever-cli-reference.md       # Ever CLI command reference
 ├── CLAUDE.md                   # Instructions for Claude agents
 ├── AGENTS.md                   # Instructions for Codex QA agent
 ├── prd.json                    # Product requirements (generated)
@@ -274,7 +274,7 @@ The watchdog orchestrator automatically restarts failed phases (up to 5 times fo
 <details>
 <summary><strong>Can I skip phases?</strong></summary>
 
-Yes. If you already have a `prd.json`, you can run the build and QA phases directly by calling `./build-ralph.sh` and `./qa-ralph.sh` individually. Each phase is a standalone script.
+Yes. If you already have a `prd.json`, you can run the build and QA phases directly by calling `./ralph/build-ralph.sh` and `./ralph/qa-ralph.sh` individually. Each phase is a standalone script.
 </details>
 
 <details>

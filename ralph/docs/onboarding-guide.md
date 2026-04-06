@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-Ralph-to-Ralph can now clone **any** SaaS product, not just Resend. Run `./onboard.sh` and it will ask you what to clone, research the target's API/docs, configure your cloud provider (AWS, GCP, or Azure), and start the autonomous build loop — zero manual config editing required.
+Ralph-to-Ralph can now clone **any** SaaS product, not just Resend. Run `./ralph/onboard.sh` and it will ask you what to clone, research the target's API/docs, configure your cloud provider (AWS, GCP, or Azure), and start the autonomous build loop — zero manual config editing required.
 
 ---
 
@@ -14,14 +14,14 @@ Now there's an **onboarding layer** that runs before the build loop:
 
 | Before | After |
 |--------|-------|
-| Edit 7+ config files by hand | `./onboard.sh` configures everything |
+| Edit 7+ config files by hand | `./ralph/onboard.sh` configures everything |
 | AWS only | AWS, GCP, or Azure |
 | Resend-specific schema/preflight | Clean slate, configured per target |
-| `./scripts/start.sh <url>` | `./onboard.sh` (calls start.sh automatically) |
+| `./scripts/start.sh <url>` | `./ralph/onboard.sh` (calls start.sh automatically) |
 
 ### Files Added
-- **`onboard.sh`** — Entry point. Runs the Claude onboarding session, validates the output, starts the loop.
-- **`onboard-prompt.md`** — The Claude prompt that drives the onboarding flow (9 steps: collect info → research → configure → verify → hand off).
+- **`ralph/onboard.sh`** — Entry point. Runs the Claude onboarding session, validates the output, starts the loop.
+- **`ralph/onboard-prompt.md`** — The Claude prompt that drives the onboarding flow (9 steps: collect info → research → configure → verify → hand off).
 - **`.env.example`** — Documents every environment variable the project uses.
 - **`tests/db-ssl.test.ts`** — Tests for the SSL configuration fix.
 - **`tests/drizzle-config.test.ts`** — Tests for the Drizzle config fix.
@@ -30,9 +30,9 @@ Now there's an **onboarding layer** that runs before the build loop:
 ### Files Changed
 - **`src/lib/db/index.ts`** — SSL check uses `DB_SSL` env var instead of hostname detection.
 - **`drizzle.config.ts`** — Same SSL fix.
-- **`inspect-ralph.sh`** — Now reads `ralph-config.json` so the inspect agent knows the chosen cloud.
-- **`build-ralph.sh`** — Now reads `ralph-config.json`.
-- **`qa-ralph.sh`** — Now reads `ralph-config.json`.
+- **`ralph/inspect-ralph.sh`** — Now reads `ralph-config.json` so the inspect agent knows the chosen cloud.
+- **`ralph/build-ralph.sh`** — Now reads `ralph-config.json`.
+- **`ralph/qa-ralph.sh`** — Now reads `ralph-config.json`.
 - **`README.md`** — Updated quick start, FAQ, and project structure.
 - **`.gitignore`** — Excludes generated `ralph-config.json`.
 
@@ -84,7 +84,7 @@ Edit `.env` with your cloud credentials. At minimum you need:
 ### 4. Run onboarding
 
 ```bash
-./onboard.sh
+./ralph/onboard.sh
 ```
 
 The onboarding agent will:
@@ -152,13 +152,13 @@ Every phase of the loop reads this file. The inspect agent uses it to map featur
 ## Troubleshooting
 
 **Onboarding says "ONBOARD_FAILED"**
-→ Read the error output. It will list exactly which dependencies are missing and how to install them. Fix them and re-run `./onboard.sh`.
+→ Read the error output. It will list exactly which dependencies are missing and how to install them. Fix them and re-run `./ralph/onboard.sh`.
 
 **Onboarding doesn't complete (no promise tag)**
-→ The Claude session may have hit the 30-minute timeout or a context limit. Re-run `./onboard.sh` — it's idempotent.
+→ The Claude session may have hit the 30-minute timeout or a context limit. Re-run `./ralph/onboard.sh` — it's idempotent.
 
 **Tests fail after onboarding**
 → Run `make check && make test` to see what's wrong. The onboarding agent should leave the project in a passing state, but if it doesn't, the error output will guide you.
 
 **Want to change cloud provider after onboarding?**
-→ Delete `ralph-config.json` and re-run `./onboard.sh`. It will start fresh.
+→ Delete `ralph-config.json` and re-run `./ralph/onboard.sh`. It will start fresh.

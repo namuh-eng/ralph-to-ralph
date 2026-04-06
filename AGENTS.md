@@ -22,7 +22,7 @@ Run `make test-e2e` first. This catches obvious breakage in seconds.
 - `ever snapshot` — see current page state
 - `ever click <id>` — click elements
 - `ever input <id> <text>` — fill inputs
-- Read `ever-cli-reference.md` for full command reference
+- Read `ralph/ever-cli-reference.md` for full command reference
 
 ### Step 3: Real API testing
 Test the clone's API directly:

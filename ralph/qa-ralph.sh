@@ -2,12 +2,12 @@
 # Phase 3: QA evaluation using Codex as independent evaluator
 # Passes the current feature + its dependencies to Codex to give context without overflow
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 TARGET_URL="${1:-}"
 ITERATIONS="${2:-999}"
 
-[ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./onboard.sh first."; exit 1; }
+[ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./ralph/onboard.sh first."; exit 1; }
 BROWSER_AGENT=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
 
 if [ ! -f "prd.json" ]; then
@@ -142,7 +142,7 @@ except:
 " 2>/dev/null)
 
   result=$(timeout 1200 codex exec --dangerously-bypass-approvals-and-sandbox \
-"$(cat qa-prompt.md)
+"$(cat ralph/qa-prompt.md)
 
 == FEATURE TO TEST ==
 $(python3 -c "import json; d=json.load(open('.current-feature.json')); print(json.dumps(d['main'], indent=2))")
@@ -163,9 +163,9 @@ else:
 $QA_HINTS
 
 Read these files as needed:
-@pre-setup.md
+@ralph/pre-setup.md
 @qa-report.json
-@ever-cli-reference.md
+@ralph/ever-cli-reference.md
 @ralph-config.json
 
 QA PROGRESS: $TESTED/$TOTAL features tested

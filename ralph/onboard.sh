@@ -2,7 +2,7 @@
 # Pre-loop onboarding: collect target info, research stack, generate config
 # Run this BEFORE start.sh — it calls start.sh automatically on success
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 # ── Cleanup on interrupt ──
 cleanup() {
@@ -11,14 +11,14 @@ cleanup() {
   echo "=== Onboarding interrupted ==="
   echo ""
   if [ -f "ralph-config.json" ]; then
-    echo "Config was generated. Re-run ./onboard.sh to resume from the build step."
+    echo "Config was generated. Re-run ./ralph/onboard.sh to resume from the build step."
   elif [ -f ".onboard-answers.tmp" ]; then
-    echo "Your answers were saved. Re-run ./onboard.sh to skip re-entering them."
+    echo "Your answers were saved. Re-run ./ralph/onboard.sh to skip re-entering them."
   else
-    echo "No state was saved. Re-run ./onboard.sh to start fresh."
+    echo "No state was saved. Re-run ./ralph/onboard.sh to start fresh."
   fi
   echo ""
-  echo "To reset everything: ./onboard.sh --reset"
+  echo "To reset everything: ./ralph/onboard.sh --reset"
   echo ""
   exit 130
 }
@@ -32,10 +32,10 @@ if [[ "${1:-}" == "--reset" ]]; then
     "src/lib/db/schema.ts"
     "scripts/preflight.sh"
     "package.json"
-    "pre-setup.md"
+    "ralph/pre-setup.md"
     "CLAUDE.md"
-    "inspect-prompt.md"
-    "build-prompt.md"
+    "ralph/inspect-prompt.md"
+    "ralph/build-prompt.md"
   )
   dirty=0
   for f in "${ONBOARD_FILES[@]}"; do
@@ -53,7 +53,7 @@ if [[ "${1:-}" == "--reset" ]]; then
     npm install --silent 2>/dev/null || true
   fi
   echo ""
-  echo "Reset complete. Run ./onboard.sh to start fresh."
+  echo "Reset complete. Run ./ralph/onboard.sh to start fresh."
   exit 0
 fi
 
@@ -111,7 +111,7 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
     print(f'ERROR: invalid cloudProvider: {c[\"cloudProvider\"]}', file=sys.stderr)
     sys.exit(1)
 print('Config is valid.')
-" || { echo "Config is invalid. Run ./onboard.sh --reset to start fresh."; exit 1; }
+" || { echo "Config is invalid. Run ./ralph/onboard.sh --reset to start fresh."; exit 1; }
       TARGET_URL=$(python3 -c "import json; print(json.load(open('ralph-config.json'))['targetUrl'])")
       BROWSER_AGENT=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
       echo ""
@@ -135,7 +135,7 @@ print('Config is valid.')
     2)
       echo "Resetting..."
       "$0" --reset
-      exec "$0"
+      exec "$(dirname "$0")/onboard.sh"
       ;;
     3)
       echo "Aborted."
@@ -275,7 +275,7 @@ case "$CLOUD_PROVIDER" in
       if [[ "${_INSTALL_CHOICE:-y}" =~ ^[Yy] ]]; then
         npm install -g vercel
       else
-        echo "Skipping. Re-run ./onboard.sh once Vercel CLI is installed."
+        echo "Skipping. Re-run ./ralph/onboard.sh once Vercel CLI is installed."
         exit 1
       fi
     fi
@@ -286,7 +286,7 @@ case "$CLOUD_PROVIDER" in
       echo ""
       vercel login
       if ! vercel whoami &>/dev/null; then
-        echo "Still not logged in. Re-run ./onboard.sh once authenticated."
+        echo "Still not logged in. Re-run ./ralph/onboard.sh once authenticated."
         exit 1
       fi
     fi
@@ -303,7 +303,7 @@ case "$CLOUD_PROVIDER" in
       if [[ "${_INSTALL_CHOICE:-y}" =~ ^[Yy] ]]; then
         brew install awscli
       else
-        echo "Skipping. Re-run ./onboard.sh once AWS CLI is installed."
+        echo "Skipping. Re-run ./ralph/onboard.sh once AWS CLI is installed."
         exit 1
       fi
     fi
@@ -315,7 +315,7 @@ case "$CLOUD_PROVIDER" in
       echo ""
       aws configure
       if ! aws sts get-caller-identity &>/dev/null; then
-        echo "Still not authenticated. Re-run ./onboard.sh once configured."
+        echo "Still not authenticated. Re-run ./ralph/onboard.sh once configured."
         exit 1
       fi
     fi
@@ -333,11 +333,11 @@ case "$CLOUD_PROVIDER" in
         open "https://cloud.google.com/sdk/docs/install" 2>/dev/null || true
         read -rp "Press Enter once gcloud is installed and authenticated..."
         if ! command -v gcloud &>/dev/null; then
-          echo "gcloud still not found. Re-run ./onboard.sh once installed."
+          echo "gcloud still not found. Re-run ./ralph/onboard.sh once installed."
           exit 1
         fi
       else
-        echo "Skipping. Re-run ./onboard.sh once Google Cloud SDK is installed."
+        echo "Skipping. Re-run ./ralph/onboard.sh once Google Cloud SDK is installed."
         exit 1
       fi
     fi
@@ -353,7 +353,7 @@ case "$CLOUD_PROVIDER" in
         gcloud config set project "$_GCP_PROJECT"
       fi
       if ! gcloud auth print-identity-token &>/dev/null; then
-        echo "Still not authenticated. Re-run ./onboard.sh once configured."
+        echo "Still not authenticated. Re-run ./ralph/onboard.sh once configured."
         exit 1
       fi
     fi
@@ -370,7 +370,7 @@ case "$CLOUD_PROVIDER" in
       if [[ "${_INSTALL_CHOICE:-y}" =~ ^[Yy] ]]; then
         brew install azure-cli
       else
-        echo "Skipping. Re-run ./onboard.sh once Azure CLI is installed."
+        echo "Skipping. Re-run ./ralph/onboard.sh once Azure CLI is installed."
         exit 1
       fi
     fi
@@ -381,7 +381,7 @@ case "$CLOUD_PROVIDER" in
       echo ""
       az login
       if ! az account show &>/dev/null; then
-        echo "Still not logged in. Re-run ./onboard.sh once authenticated."
+        echo "Still not logged in. Re-run ./ralph/onboard.sh once authenticated."
         exit 1
       fi
     fi
@@ -493,7 +493,7 @@ if [ "$_SKIP_QA" = true ] && [ "$CLOUD_PROVIDER" != "custom" ]; then
   if [ "$_auth_ok" = false ]; then
     echo ""
     echo "ERROR: $CLOUD_PROVIDER CLI session has expired."
-    echo "Re-run ./onboard.sh to re-authenticate."
+    echo "Re-run ./ralph/onboard.sh to re-authenticate."
     echo "(Your answers are saved in .onboard-answers.tmp — stack selection will be remembered.)"
     exit 1
   fi
@@ -543,7 +543,7 @@ echo ""
 # ── Step 2: Claude handles research + config generation (no Q&A needed) ──
 claude_exit=0
 result=$(timeout 1800 claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
-"@onboard-prompt.md @pre-setup.md @CLAUDE.md
+"@ralph/onboard-prompt.md @ralph/pre-setup.md @CLAUDE.md
 
 The user has already provided their answers:
 - Target URL: $TARGET_URL

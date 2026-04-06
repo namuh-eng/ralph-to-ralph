@@ -1,6 +1,6 @@
 #!/bin/bash
 # Pre-flight: provision all AWS infrastructure BEFORE the build loop starts
-# Run this once before ./ralph-watchdog.sh
+# Run this once before ./ralph/ralph-watchdog.sh
 set -euo pipefail
 
 REGION="${AWS_REGION:-us-east-1}"
@@ -81,4 +81,4 @@ echo "S3: $BUCKET"
 echo "ECR: $APP_NAME"
 echo "SES: $SES_IDENTITY"
 echo ""
-echo "Next: ./ralph-watchdog.sh <target-url>"
+echo "Next: ./ralph/ralph-watchdog.sh <target-url>"
