@@ -11,6 +11,35 @@ Be conversational. Explain things in plain English. Ask one question at a time. 
 
 ---
 
+## Phase 0: Git Pre-flight (silent)
+
+Before asking anything, run this check silently using the Bash tool:
+
+```bash
+git remote get-url origin 2>/dev/null || echo ""
+```
+
+If the remote URL contains `jaeyunha/ralph-to-ralph` or `namuh-eng/ralph-to-ralph`, the user cloned the template directly instead of forking. Prompt them:
+
+> "Before we start — it looks like you cloned the ralph-to-ralph repo directly. To keep your project separate, you should reinitialize git with a clean history. Want me to do that now? (Your files won't change — just the git history.)"
+
+If they say yes, run:
+```bash
+rm -rf .git
+git init -q
+git add .
+git -c user.email="user@localhost" -c user.name="User" commit -q -m "init: start project from ralph-to-ralph" 2>/dev/null \
+  || git commit -q -m "init: start project from ralph-to-ralph"
+```
+
+Then tell them: "Done — clean history. You'll want to create a new repo on GitHub and run `git remote add origin YOUR_REPO_URL` once we're set up."
+
+If they say no, continue without reinitializing.
+
+If the remote is empty (degit user) or already points to their own repo, skip this phase entirely.
+
+---
+
 ## Phase 1: Get the Target
 
 Ask: **"What product do you want to clone? Give me the URL."**

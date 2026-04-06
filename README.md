@@ -84,11 +84,21 @@ The **watchdog orchestrator** ties it all together with auto-restart on failure,
 
 ### Run It
 
+**Step 1 — Fork this repo** on GitHub (top-right "Fork" button). This gives you your own copy to push SaaS features into, and lets you pull pipeline improvements from upstream later.
+
+**Step 2 — Clone your fork:**
+
 ```bash
-# Clone
-git clone https://github.com/jaeyunha/ralph-to-ralph.git
+git clone https://github.com/YOUR_USERNAME/ralph-to-ralph.git
 cd ralph-to-ralph
 
+# Optional: track upstream for future pipeline improvements
+git remote add upstream https://github.com/jaeyunha/ralph-to-ralph.git
+```
+
+Then continue:
+
+```bash
 # Install
 npm install
 npx playwright install chromium
