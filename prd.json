@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "id": "US-001",
+    "title": "ASCII flow diagram of ralph-watchdog.sh",
+    "description": "Visualize all phases and control flow of ralph/ralph-watchdog.sh as an ASCII diagram",
+    "acceptanceCriteria": [
+      "Phase 1 (Inspect) loop with restart logic is shown",
+      "Phase 2 (Build) loop with up to 10 restarts is shown",
+      "Phase 3 (QA) loop and cycle structure (max 5 cycles) is shown",
+      "Lock file check, cron_backup, and helper functions are referenced",
+      "DONE/ABORT terminal states are visible",
+      "Diagram was output to the user"
+    ],
+    "passes": true
+  }
+]

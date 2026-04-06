@@ -39,7 +39,7 @@ fi
 count_passes() {
   python3 -c "
 import json; d=json.load(open('prd.json'))
-print(sum(1 for x in d if x.get('passes', False)))
+print(sum(1 for x in d if x.get('build_pass', False)))
 " 2>/dev/null || echo "0"
 }
 
@@ -57,13 +57,8 @@ qa_complete() {
   python3 -c "
 import json
 prd = json.load(open('prd.json'))
-try:
-    report = json.load(open('qa-report.json'))
-except: report = []
-tested = {r['feature_id'] for r in report}
-all_ids = {item['id'] for item in prd}
-untested = all_ids - tested
-if untested:
+unverified = [item['id'] for item in prd if not item.get('qa_pass', False)]
+if unverified:
     print('false')
 else:
     print('true')
@@ -148,17 +143,17 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
   cron_backup
 
   QA_STATUS=$(qa_complete)
-  TESTED=$(python3 -c "import json; print(len(json.load(open('qa-report.json'))))" 2>/dev/null || echo "0")
+  QA_PASSED=$(python3 -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo "0")
   TOTAL=$(total_tasks)
 
   if [ "$QA_STATUS" = "true" ] && all_passed; then
-    log "=== ALL $TOTAL FEATURES: BUILT + QA VERIFIED ($TESTED/$TOTAL tested) ==="
+    log "=== ALL $TOTAL FEATURES: BUILT + QA VERIFIED ($QA_PASSED/$TOTAL qa_pass) ==="
     break
   fi
 
-  log "Phase 3: Cycle $cycle done. QA tested: $TESTED/$TOTAL. Build passes: $(count_passes)/$TOTAL."
+  log "Phase 3: Cycle $cycle done. QA passed: $QA_PASSED/$TOTAL. Build passes: $(count_passes)/$TOTAL."
   if [ "$QA_STATUS" != "true" ]; then
-    log "Phase 3: QA incomplete — $(($TOTAL - $TESTED)) features untested. Restarting QA..."
+    log "Phase 3: QA incomplete — $(($TOTAL - $QA_PASSED)) features not qa_pass. Restarting QA..."
   else
     AFTER_QA=$(count_passes)
     REMAINING=$(($TOTAL - $AFTER_QA))

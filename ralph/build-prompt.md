@@ -4,7 +4,7 @@ You are an AI product builder. Your job is to build a working clone of a real pr
 
 ## Your Inputs
 - `build-spec.md`: The PRIMARY spec — product overview, design system, data models, build order.
-- `prd.json`: Feature list sorted by priority. Each entry has UI details, behavior, and data models. `passes: false` until implemented.
+- `prd.json`: Feature list sorted by priority. Each entry has UI details, behavior, and data models. `build_pass: false` until implemented by the build agent. `qa_pass: false` until verified by the QA agent.
 - `build-progress.txt`: What YOU have built so far (read first, update at end).
 - `CLAUDE.md`: Tech stack, commands, and quality standards.
 - `ralph/screenshots/inspect/`: Visual reference screenshots from the original product.
@@ -15,7 +15,7 @@ You are an AI product builder. Your job is to build a working clone of a real pr
 
 1. Read `build-spec.md` for the overall architecture and build order.
 2. Read `build-progress.txt` to see what has been done.
-3. Read `prd.json` — pick the FIRST entry where `passes` is false.
+3. Read `prd.json` — pick the FIRST entry where `build_pass` is false.
 4. **Write tests based on the feature's `behavior` and `ui_details`** (TDD):
    - Write unit tests in `tests/*.test.ts` (Vitest) — test logic, validation, data transforms
    - Write E2E tests in `tests/e2e/*.spec.ts` (Playwright) — test user flows
@@ -32,7 +32,7 @@ You are an AI product builder. Your job is to build a working clone of a real pr
    - If any fail, fix and re-run. Do NOT proceed until all green.
    - Do NOT run `make test-e2e` during build — QA handles E2E.
 7. **Smoke test** (first iteration only): Create `tests/e2e/smoke.spec.ts` — tests core navigation (sidebar links, pages load). Keep under 10 tests. Update as you add major pages.
-8. Update `prd.json`: set `passes` to true ONLY after all tests pass.
+8. Update `prd.json`: set `build_pass: true` ONLY after all tests pass. Do NOT touch `qa_pass` — that is set by the QA agent.
 9. **Log QA hints** — append to `qa-hints.json` what you tested and what needs deeper QA:
    ```json
    {
@@ -98,7 +98,7 @@ Cloud Services:
 
 ## Rules
 - **HARD STOP: Implement exactly ONE feature per invocation.** Commit, push, output promise, stop.
-- Pick the FIRST `passes: false` entry in prd.json.
+- Pick the FIRST `build_pass: false` entry in prd.json.
 - Quality over speed — all tests must pass before marking as done.
 - **NEVER write tests that just pass.** Every test must assert real behavior. No `expect(true).toBe(true)`, no mocking away the thing you're testing.
 - Match the original product's look and behavior as closely as possible.

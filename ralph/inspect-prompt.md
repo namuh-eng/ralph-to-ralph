@@ -106,7 +106,18 @@ The logged-in user has already completed onboarding, so the onboarding UI won't 
    - P11+: Polish, settings, nice-to-haves
    - Last: Deployment
 
-7. Append new feature entries to `prd.json`.
+7. Append new feature entries to `prd.json`. Every entry MUST include `"build_pass": false` and `"qa_pass": false` as initial values:
+   ```json
+   {
+     "id": "feature-001",
+     "description": "...",
+     "priority": "P1",
+     "category": "...",
+     "dependent_on": [],
+     "build_pass": false,
+     "qa_pass": false
+   }
+   ```
 8. Update `build-spec.md` incrementally with what you discovered.
 9. Update `inspect-progress.txt` with what you did.
 10. **Commit and push:**

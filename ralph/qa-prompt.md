@@ -67,22 +67,30 @@ Also run full `make test-e2e` to catch cross-feature regressions.
 </important>
 
 ### Record & Fix
-14. Record findings in `qa-report.json`:
+14. Record findings in `qa-report.json` — **append a NEW entry, never overwrite previous ones**:
     ```json
     {
       "feature_id": "feature-001",
+      "attempt": 1,
       "status": "pass|fail|partial",
       "tested_steps": ["step 1 result"],
-      "bugs_found": [{ "severity": "critical|major|minor|cosmetic", "description": "...", "expected": "...", "actual": "...", "reproduction": "..." }]
+      "bugs_found": [{ "severity": "critical|major|minor|cosmetic", "description": "...", "expected": "...", "actual": "...", "reproduction": "..." }],
+      "fix_description": "brief description of what fix was attempted (or 'no fix needed' if passed)"
     }
     ```
+    If a `== QA HISTORY ==` section is provided in your prompt, read all previous attempts before deciding your fix strategy — do not repeat an approach that already failed.
 15. If bugs found: fix ALL bugs for this feature, then run `make check && make test` once. Commit together: `git commit -m "QA fix: <feature> — fixed N bugs: <brief list>"`
-16. `git add -A`, detailed commit message, `git push`.
+16. Update `prd.json` for this feature:
+    - Set `qa_pass: true` if all bugs are fixed and feature works end-to-end.
+    - Set `qa_pass: false` if bugs remain unfixed (so the QA loop retries this feature).
+    - Do NOT touch `build_pass` — that is owned by the build agent.
+17. `git add -A`, detailed commit message, `git push`.
 
 ## Rules
 - **HARD STOP: Test exactly ONE feature per invocation.** Commit, push, output promise, stop.
 - Be skeptical. Assume things are broken until proven otherwise.
 - Fix ALL bugs for the feature, then test once before committing.
 - **NEVER weaken or delete tests to make them pass.** Fix the code, not the test.
+- Always update `qa_pass` in `prd.json` before outputting the promise.
 - Output `<promise>NEXT</promise>` after committing if more features remain.
-- Output `<promise>QA_COMPLETE</promise>` only if ALL features are QA tested and all bugs fixed.
+- Output `<promise>QA_COMPLETE</promise>` only if ALL features are QA tested and all `qa_pass: true`.
