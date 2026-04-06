@@ -19,7 +19,7 @@ An autonomous pipeline that inspects any SaaS product, builds a working clone wi
 
 ## Proof It Works
 
-We pointed Ralph-to-Ralph at [resend.com](https://resend.com) during Ralphthon Seoul 2026 and walked away:
+We pointed Ralph-to-Ralph at [resend.com](https://resend.com) during Ralphthon Seoul 2026 and walked away (Check out the repo [namuh-send](https://github.com/namuh-eng/namuh-send)):
 
 | Metric | Result |
 |--------|--------|
