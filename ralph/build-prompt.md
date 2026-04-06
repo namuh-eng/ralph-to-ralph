@@ -90,11 +90,38 @@ Cloud Services:
 - Deploy via App Runner. Docker image → ECR → App Runner service.
 - Final iteration should deploy and output the live URL.
 
+## Authentication
+
+Auth is **P1 priority** — build it before core product features.
+
+### Stack
+- **Auth.js v5** (NextAuth) — `npm install next-auth@beta`
+- **Drizzle adapter** — `npm install @auth/drizzle-adapter` — stores sessions/users in Postgres
+- **Middleware** — `src/middleware.ts` — protect all routes except `/login`, `/signup`, `/api/auth/*`
+
+### Implementation
+1. Read `target-docs/auth-flow.md` (from inspect phase) to understand what auth methods to build
+2. Configure `src/auth.ts` with the providers matching the target product:
+   - **Email/password**: use `Credentials` provider + bcrypt (`npm install bcryptjs`)
+   - **OAuth**: use built-in NextAuth providers (GoogleProvider, GitHubProvider, etc.) — add `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` etc. to `.env.example`
+   - **Magic link**: use `Resend` or `NodeMailer` email provider
+3. Add Drizzle schema tables: `users`, `accounts`, `sessions`, `verification_tokens`
+4. Build login/signup UI in `src/app/(auth)/login/page.tsx` and `src/app/(auth)/signup/page.tsx` — match the original product's design
+5. Add password reset flow if the target has one
+6. Protect all non-auth routes in `src/middleware.ts`
+
+### Environment variables to add to `.env.example`
+```
+AUTH_SECRET=              # generate with: npx auth secret
+AUTH_GOOGLE_ID=           # if target uses Google OAuth
+AUTH_GOOGLE_SECRET=
+AUTH_GITHUB_ID=           # if target uses GitHub OAuth
+AUTH_GITHUB_SECRET=
+```
+
 ## Out of Scope
-- Login / signup / authentication (use API key auth wall)
 - Billing, payments, subscriptions
-- Account settings, profile management
-- OAuth / SSO
+- Payment processing
 
 ## Rules
 - **HARD STOP: Implement exactly ONE feature per invocation.** Commit, push, output promise, stop.

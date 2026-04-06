@@ -53,6 +53,26 @@ The logged-in user has already completed onboarding, so the onboarding UI won't 
 3. **Save findings** to `target-docs/onboarding-flow.md` — step-by-step sequence, required vs. skippable steps, empty states, what "done" looks like
 4. **Add PRD entries** with category `"onboarding"`, priority P2-P3, for each onboarding step + empty states
 
+### Phase A.2: Auth Flow Discovery (during docs/early iterations)
+
+Inspect the target product's authentication system — this is P1 priority for the build agent.
+
+1. Navigate to `/login`, `/signup`, `/register`, `/auth` — take screenshots of each
+2. Identify all auth methods offered:
+   - Email + password
+   - OAuth providers (Google, GitHub, GitLab, etc.)
+   - Magic link / passwordless
+   - SSO / SAML
+3. Inspect the signup flow step by step — note required fields, validation, email verification
+4. Inspect the login flow — note error states, "forgot password" flow
+5. Note any post-login redirect behavior, onboarding steps after first login
+6. Save findings to `target-docs/auth-flow.md`
+7. Add PRD entries with category `"auth"` and priority `P1`:
+   - One entry per auth method (e.g. `auth-email`, `auth-google`, `auth-github`)
+   - One entry for session management / protected routes
+   - One entry for password reset flow (if present)
+   - One entry for email verification (if present)
+
 ### Iteration 1: Map the site (if docs done but no site map)
 - Navigate all pages, map the complete site structure
 - Save to `sitemap.md`

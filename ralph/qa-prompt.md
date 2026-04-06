@@ -44,6 +44,34 @@ Also run full `make test-e2e` to catch cross-feature regressions.
    - Compare against `ralph/screenshots/inspect/` and `behavior` field
    - Test edge cases: empty inputs, rapid clicks, unexpected data
 
+<important if="category is auth">
+### Step 3: Auth Verification
+Test the full authentication flow end-to-end:
+
+**Login flow:**
+- Navigate to `/login` — does the page render correctly?
+- Submit with invalid credentials — does it show an error message?
+- Submit with valid credentials — does it redirect to the dashboard?
+- Test each auth method the target supports (email/password, OAuth, magic link)
+
+**Signup flow:**
+- Navigate to `/signup` — does it render correctly?
+- Submit with missing required fields — does validation trigger?
+- Complete signup — does it create a user in Postgres and log them in?
+- If email verification is required — does the verification email send?
+
+**Session & protected routes:**
+- Log out — does it clear the session and redirect to `/login`?
+- Access a protected route while logged out — does it redirect to `/login`?
+- Refresh the page while logged in — does the session persist?
+
+**Password reset (if applicable):**
+- Submit the forgot password form — does the reset email send?
+- Use the reset link — does it allow setting a new password?
+
+Verify users/sessions are correctly stored in Postgres via Drizzle.
+</important>
+
 <important if="category is infrastructure, crud, or sdk">
 ### Step 3: Real Backend Verification
 8. Verify real infrastructure, not mocks:
