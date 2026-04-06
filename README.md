@@ -12,10 +12,6 @@ An autonomous pipeline that inspects any SaaS product, builds a working clone wi
 
 <br>
 
-<!-- Replace the src below with the GitHub CDN URL after dragging docs/demo.mp4 into a PR comment -->
-<video src="docs/demo.mp4" width="100%" autoplay loop muted playsinline>
-  Your browser doesn't support video — <a href="docs/demo.mp4">watch the demo here</a>.
-</video>
 
 </div>
 
