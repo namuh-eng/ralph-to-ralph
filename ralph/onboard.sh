@@ -24,6 +24,46 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM
 
+# ── Handle flags ──
+_SKIP_STAR_PROMPT=false
+for _arg in "$@"; do
+  case "$_arg" in
+    --skip-star-prompt) _SKIP_STAR_PROMPT=true ;;
+  esac
+done
+if [[ "${SKIP_STAR_PROMPT:-}" == "1" ]] || [[ "${RALPH_TO_RALPH_SKIP_STAR_PROMPT:-}" == "1" ]]; then
+  _SKIP_STAR_PROMPT=true
+fi
+
+# ── Star prompt (failure-proof) ──
+# Gates: no skip flag, interactive TTY, gh installed + authenticated.
+# Never causes install to fail. Default is No.
+maybe_prompt_to_star_repo() {
+  (
+    set +euo pipefail  # disable strict mode inside subshell
+    if [ "$_SKIP_STAR_PROMPT" = true ]; then return 0; fi
+    if [ ! -t 0 ] || [ ! -t 1 ]; then return 0; fi
+    if ! command -v gh &>/dev/null; then return 0; fi
+    if ! gh auth status &>/dev/null; then return 0; fi
+
+    echo ""
+    echo "[ralph-to-ralph] optional: star namuh-eng/ralph-to-ralph on GitHub to support the project"
+    read -rp "[ralph-to-ralph] Would you like to star namuh-eng/ralph-to-ralph on GitHub with gh? [y/N]: " _star_answer
+    case "${_star_answer:-n}" in
+      [Yy]|[Yy][Ee][Ss])
+        if gh api --method PUT /user/starred/namuh-eng/ralph-to-ralph --silent 2>/dev/null; then
+          echo "[ralph-to-ralph] Thanks for the star! It helps others discover the project."
+        else
+          echo "[ralph-to-ralph] Could not star the repo — continuing without it."
+        fi
+        ;;
+      *)
+        echo "[ralph-to-ralph] No problem — you can always star later: https://github.com/namuh-eng/ralph-to-ralph"
+        ;;
+    esac
+  ) 2>/dev/null || true
+}
+
 # ── Handle --reset flag ──
 if [[ "${1:-}" == "--reset" ]]; then
   echo "=== Resetting onboarding state ==="
@@ -743,6 +783,9 @@ Requirements:
   echo "Target: $TARGET_URL"
   echo "Config: ralph-config.json"
   echo ""
+
+  # Offer to star the repo (failure-proof, skips silently in CI/non-interactive)
+  maybe_prompt_to_star_repo
 
   # Check if required browser agent is available before auto-starting the build loop
   if [ "${BROWSER_AGENT:-ever}" = "ever" ] && ! command -v ever &>/dev/null; then
