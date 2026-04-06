@@ -38,16 +38,11 @@ The bash wrapper has already collected:
 
 These values are provided in your prompt context. Use them directly — do NOT ask the user again.
 
-> **TODO (auth):** Currently the clone's API and dashboard are protected only by a
-> static `DASHBOARD_KEY` env var (simple string comparison). This is fine for local
-> dev and private deployments, but has real weaknesses: no timing-safe comparison,
-> no token rotation, no per-user access control. A future onboarding step should ask
-> the user to choose an auth strategy:
->   1. **API key only** (current default — simple, no extra setup)
->   2. **OAuth** (Google / GitHub — proper session auth, requires an OAuth app)
->   3. **None** (fully open — only appropriate for local-only use)
-> Until this is implemented, instruct the user to set a strong random `DASHBOARD_KEY`
-> and keep it out of version control.
+> **Auth:** The clone uses **Better Auth** for authentication — matching the target product's
+> auth methods (email/password, OAuth providers, magic links). The inspect phase captures
+> the auth flow and the build phase implements it with Better Auth + Drizzle adapter.
+> Add `BETTER_AUTH_SECRET` (generate with `openssl rand -base64 32`) and `BETTER_AUTH_URL`
+> to `.env` and keep them out of version control.
 
 ---
 

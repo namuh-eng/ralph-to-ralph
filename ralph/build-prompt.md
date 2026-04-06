@@ -84,7 +84,7 @@ Cloud Services:
 
 ### Credentials
 - **AWS**: Pre-configured via `~/.aws/credentials`. Use `us-east-1` for SES.
-- **`.env`**: `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ZONE_ID` (DNS), `DATABASE_URL` (Postgres), `DASHBOARD_KEY` (auth wall)
+- **`.env`**: `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ZONE_ID` (DNS), `DATABASE_URL` (Postgres), `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
 
 ### Deployment
 - Deploy via App Runner. Docker image → ECR → App Runner service.
