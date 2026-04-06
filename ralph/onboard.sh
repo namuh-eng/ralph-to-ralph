@@ -540,6 +540,14 @@ echo "--- Researching target and configuring project... ---"
 echo "(This takes 1-5 minutes. Press Ctrl+C to cancel safely.)"
 echo ""
 
+# ── Verify Claude Code can make API calls before the long research step ──
+if ! claude -p "echo ok" --max-turns 1 &>/dev/null; then
+  echo "ERROR: Claude Code is not authenticated or cannot reach the API."
+  echo "  Run: claude login"
+  echo "  Or set ANTHROPIC_API_KEY in your environment."
+  exit 1
+fi
+
 # ── Step 2: Claude handles research + config generation (no Q&A needed) ──
 claude_exit=0
 result=$(timeout 1800 claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
