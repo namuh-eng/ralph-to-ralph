@@ -43,6 +43,7 @@ describe("db/index.ts SSL configuration", () => {
 
   it("disables SSL when DB_SSL is unset", async () => {
     vi.stubEnv("DATABASE_URL", "postgresql://localhost:5432/test");
+    // biome-ignore lint/performance/noDelete: process.env needs delete — assignment coerces to string "undefined"
     delete process.env.DB_SSL;
 
     const { Pool } = await import("pg");
@@ -74,6 +75,7 @@ describe("db/index.ts SSL configuration", () => {
       "DATABASE_URL",
       "postgresql://user:pass@mydb.amazonaws.com:5432/db",
     );
+    // biome-ignore lint/performance/noDelete: process.env needs delete — assignment coerces to string "undefined"
     delete process.env.DB_SSL;
 
     const { Pool } = await import("pg");

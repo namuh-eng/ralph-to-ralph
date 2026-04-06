@@ -9,6 +9,8 @@ export default defineConfig({
   dialect: "postgresql",
   dbCredentials: {
     url:
-      needsSsl && !url.includes("sslmode") ? `${url}${url.includes("?") ? "&" : "?"}sslmode=no-verify` : url,
+      needsSsl && !url.includes("sslmode")
+        ? `${url}${url.includes("?") ? "&" : "?"}sslmode=no-verify`
+        : url,
   },
 });
