@@ -24,6 +24,53 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM
 
+# ── Handle flags ──
+_SKIP_STAR_PROMPT=false
+for _arg in "$@"; do
+  case "$_arg" in
+    --skip-star-prompt) _SKIP_STAR_PROMPT=true ;;
+  esac
+done
+if [[ "${SKIP_STAR_PROMPT:-}" == "1" ]] || [[ "${RALPH_TO_RALPH_SKIP_STAR_PROMPT:-}" == "1" ]]; then
+  _SKIP_STAR_PROMPT=true
+fi
+
+# ── Star prompt (failure-proof) ──
+# Gates: no skip flag, interactive TTY, gh installed + authenticated.
+# Never causes install to fail. Default is No.
+maybe_prompt_to_star_repo() {
+  (
+    set +euo pipefail  # disable strict mode inside subshell
+    if [ "$_SKIP_STAR_PROMPT" = true ]; then return 0; fi
+    if [ ! -t 0 ] || [ ! -t 1 ]; then return 0; fi
+    if ! command -v gh &>/dev/null; then return 0; fi
+    if ! gh auth status &>/dev/null; then return 0; fi
+
+    echo ""
+    echo "[ralph-to-ralph] optional: star namuh-eng/ralph-to-ralph on GitHub to support the project"
+    read -rp "[ralph-to-ralph] Would you like to star namuh-eng/ralph-to-ralph on GitHub with gh? [y/N]: " _star_answer
+    case "${_star_answer:-n}" in
+      [Yy]|[Yy][Ee][Ss])
+        if gh api --method PUT /user/starred/namuh-eng/ralph-to-ralph --silent 2>/dev/null; then
+          echo "[ralph-to-ralph] Thanks for the star! It helps others discover the project."
+        else
+          echo "[ralph-to-ralph] Could not star the repo — continuing without it."
+        fi
+        ;;
+      *)
+        echo "[ralph-to-ralph] No problem — you can always star later: https://github.com/namuh-eng/ralph-to-ralph"
+        ;;
+    esac
+  ) 2>/dev/null || true
+}
+
+# Resolve Python: prefer `uv run python3` if uv is available, fall back to bare python3
+if command -v uv &>/dev/null; then
+  PY="uv run python3"
+else
+  PY="python3"
+fi
+
 # ── Handle --reset flag ──
 if [[ "${1:-}" == "--reset" ]]; then
   echo "=== Resetting onboarding state ==="
@@ -112,7 +159,7 @@ fi
 
 # ── Detect partial state from a previous interrupted run ──
 if [ -f "ralph-config.json" ]; then
-  PREV_TARGET=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('targetUrl', 'unknown'))" 2>/dev/null || echo "unknown")
+  PREV_TARGET=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('targetUrl', 'unknown'))" 2>/dev/null || echo "unknown")
   echo "Found existing ralph-config.json (target: $PREV_TARGET)"
   echo ""
   echo "Options:"
@@ -124,7 +171,7 @@ if [ -f "ralph-config.json" ]; then
     1)
       echo ""
       echo "Validating existing config..."
-      python3 -c "
+      $PY -c "
 import json, sys
 c = json.load(open('ralph-config.json'))
 required = ['targetUrl', 'targetName', 'cloudProvider', 'framework', 'database']
@@ -137,8 +184,8 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
     sys.exit(1)
 print('Config is valid.')
 " || { echo "Config is invalid. Run ./ralph/onboard.sh --reset to start fresh."; exit 1; }
-      TARGET_URL=$(python3 -c "import json; print(json.load(open('ralph-config.json'))['targetUrl'])")
-      BROWSER_AGENT=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
+      TARGET_URL=$($PY -c "import json; print(json.load(open('ralph-config.json'))['targetUrl'])")
+      BROWSER_AGENT=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
       echo ""
       echo "=== Resuming with existing config ==="
       echo "Target: $TARGET_URL"
@@ -623,7 +670,7 @@ elif [[ "$result" == *"<promise>ONBOARD_COMPLETE</promise>"* ]]; then
   fi
 
   # Lightweight schema validation — catch prompt drift early
-  python3 -c "
+  $PY -c "
 import json, sys
 c = json.load(open('ralph-config.json'))
 required = ['targetUrl', 'targetName', 'cloudProvider', 'framework', 'database']
@@ -637,7 +684,7 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
 " || exit 1
 
   # ── Write setup verification results to ralph-config.json ──
-  python3 -c "
+  $PY -c "
 import json, subprocess, os
 
 config = json.load(open('ralph-config.json'))
@@ -742,7 +789,7 @@ print('')
     codex exec "Generate a bash preflight script (scripts/preflight.sh) for the following stack:
 
 Stack description: $CUSTOM_STACK_DESC
-Clone name: $(python3 -c "import json; print(json.load(open('ralph-config.json'))['targetName'])" 2>/dev/null || echo '__APP_NAME__')
+Clone name: $($PY -c "import json; print(json.load(open('ralph-config.json'))['targetName'])" 2>/dev/null || echo '__APP_NAME__')
 ralph-config.json: $(cat ralph-config.json 2>/dev/null || echo '{}')
 
 Requirements:
@@ -768,6 +815,9 @@ Requirements:
   echo "Target: $TARGET_URL"
   echo "Config: ralph-config.json"
   echo ""
+
+  # Offer to star the repo (failure-proof, skips silently in CI/non-interactive)
+  maybe_prompt_to_star_repo
 
   # Check if required browser agent is available before auto-starting the build loop
   if [ "${BROWSER_AGENT:-ever}" = "ever" ] && ! command -v ever &>/dev/null; then
