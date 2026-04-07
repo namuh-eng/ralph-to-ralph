@@ -1,0 +1,5 @@
+{
+  "env": {
+    "OMC_SKIP_HOOKS": "keyword-detector"
+  }
+}

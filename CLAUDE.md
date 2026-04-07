@@ -50,7 +50,17 @@ Phase 1: Inspect (Claude + Ever CLI) → Phase 2: Build (Claude) → Phase 3: QA
 - **`.env`** — copy from `.env.example` and fill in your values
 
 ## Authentication
-- Use **Better Auth** for all authentication — `npm install better-auth`
+
+Check `authMode` in `ralph-config.json` before building any auth. If `authMode` is missing, default to `"api-key"`.
+
+**`authMode: "api-key"`** (personal/solo use):
+- Protect all API routes and the dashboard with a single `DASHBOARD_KEY` env var
+- Check `Authorization: Bearer ${DASHBOARD_KEY}` in a Next.js middleware (`src/middleware.ts`)
+- No login/signup UI, no sessions, no user table needed
+- Do NOT install Better Auth
+
+**`authMode: "better-auth"`** (multi-user):
+- Use **Better Auth** — `npm install better-auth`
 - Match the target product's auth methods: email/password, OAuth providers (Google, GitHub, etc.), magic links
 - Protect routes via Next.js middleware (`src/middleware.ts`)
 - Store sessions in Postgres via Better Auth's built-in Drizzle adapter

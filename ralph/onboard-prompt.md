@@ -38,11 +38,15 @@ The bash wrapper has already collected:
 
 These values are provided in your prompt context. Use them directly — do NOT ask the user again.
 
-> **Auth:** The clone uses **Better Auth** for authentication — matching the target product's
-> auth methods (email/password, OAuth providers, magic links). The inspect phase captures
-> the auth flow and the build phase implements it with Better Auth + Drizzle adapter.
-> Add `BETTER_AUTH_SECRET` (generate with `openssl rand -base64 32`) and `BETTER_AUTH_URL`
-> to `.env` and keep them out of version control.
+> **Auth mode** is provided by the bash wrapper as `authMode`:
+> - `api-key` — personal/solo use. Protect all API routes and dashboard with a single
+>   `DASHBOARD_KEY` env var (Bearer token). No login/signup UI needed. Add `DASHBOARD_KEY`
+>   to `.env`. Do NOT install Better Auth or build any auth UI.
+> - `better-auth` — multi-user. Use Better Auth (`npm install better-auth`) matching the
+>   target product's auth methods (email/password, OAuth, magic links). Add
+>   `BETTER_AUTH_SECRET` (`openssl rand -base64 32`) and `BETTER_AUTH_URL` to `.env`.
+>
+> Use the value from `ralph-config.json` (`authMode`) — do not guess. If `authMode` is missing, default to `api-key`.
 
 ---
 
@@ -125,6 +129,7 @@ Write the file `ralph-config.json` with this exact schema:
   "database": "postgres",
   "dbProvider": "neon",
   "skipDeploy": false,
+  "authMode": "api-key",
   "browserAgent": "ever",
   "services": {
     "email": { "provider": "ses", "package": "@aws-sdk/client-sesv2" },

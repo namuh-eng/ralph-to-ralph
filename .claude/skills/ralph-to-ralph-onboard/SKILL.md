@@ -101,7 +101,21 @@ Ask something like:
 
 Their answer changes the deployment target recommendation, how much you explain about ops, and which services are worth setting up properly vs. faking.
 
-### Question 2: Existing CLI / Account Setup
+### Question 2: Auth Model
+
+Ask:
+
+> "Will anyone other than you use this clone?
+> 1. Just me — personal or solo use (simpler: API key, no login/signup)
+> 2. Multiple users — team or public (full auth with login/signup)"
+
+Record their answer as `authMode`:
+- Choice 1 → `authMode: "api-key"`
+- Choice 2 → `authMode: "better-auth"`
+
+This determines how the build agent implements authentication. Save it to `ralph-config.json`.
+
+### Question 3: Existing CLI / Account Setup
 
 Based on which services the clone will need (from your Phase 2 research), ask them to tell you what they already have. Don't list everything — only ask about the ones that actually apply to this product.
 
@@ -120,7 +134,7 @@ Adjust the list to match this specific product. For example:
 - Only include Upstash Redis if there's a queue or cache layer
 - Only include Svix if there's webhook delivery
 
-### Question 3: Missing Services — Brief Clarification (if needed)
+### Question 4: Missing Services — Brief Clarification (if needed)
 
 If they say they're missing something that might confuse them (e.g. they don't know what Neon is), explain it in one sentence before moving on. Don't do a full lecture — just enough to decide if they want to set it up now or later.
 

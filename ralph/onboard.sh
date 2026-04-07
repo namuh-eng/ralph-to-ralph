@@ -225,6 +225,7 @@ if [ -f ".onboard-answers.tmp" ] && [ ! -f "ralph-config.json" ]; then
   echo "  Target:  $TARGET_URL"
   echo "  Clone:   $CLONE_NAME"
   echo "  Stack:   $CLOUD_PROVIDER${CUSTOM_STACK_DESC:+ (custom: $CUSTOM_STACK_DESC)}"
+  echo "  Auth:    $AUTH_MODE"
   echo ""
   read -rp "Resume with these? [Y/n]: " _RESUME_ANSWERS
   if [[ "${_RESUME_ANSWERS:-y}" =~ ^[Yy] ]]; then
@@ -515,6 +516,18 @@ else
 fi
 
 echo ""
+echo "Will anyone other than you use this clone?"
+echo ""
+echo "  1) Just me — personal or solo use (API key auth wall, no login/signup)"
+echo "  2) Multiple users — team or public (Better Auth with login/signup)"
+echo ""
+read -rp "Choose [1]: " AUTH_CHOICE
+case "${AUTH_CHOICE:-1}" in
+  2|multi|team|public) AUTH_MODE="better-auth" ;;
+  *) AUTH_MODE="api-key" ;;
+esac
+
+echo ""
 echo "Which browser agent for inspecting and QA-testing the product?"
 echo ""
 echo "  1) Ever CLI    (recommended — visual AI browser agent)"
@@ -581,6 +594,7 @@ fi
   printf 'CUSTOM_STACK_DESC=%q\n' "$CUSTOM_STACK_DESC"
   printf 'GENERATOR=%q\n'        "$GENERATOR"
   printf 'SKIP_DEPLOY=%q\n'      "$SKIP_DEPLOY"
+  printf 'AUTH_MODE=%q\n'        "$AUTH_MODE"
   printf 'BROWSER_AGENT=%q\n'    "$BROWSER_AGENT"
   printf 'BROWSER_AGENT_DESC=%q\n' "$BROWSER_AGENT_DESC"
 } > .onboard-answers.tmp
@@ -636,6 +650,7 @@ The user has already provided their answers:
 - Database: postgres (default)
 - Skip deployment: $SKIP_DEPLOY (if true, do NOT set up deployment infrastructure — only provision database and services needed for local development. If false and cloudProvider is 'vercel', deploy via 'vercel --prod' — no Docker needed. If false and cloudProvider is 'aws'/'gcp'/'azure', build a Docker image and push to the cloud container registry.)
 - Browser agent: $BROWSER_AGENT (ever = Ever CLI for visual inspection; playwright = npx playwright scripted; stagehand = @browserbasehq/stagehand AI agent; custom = $BROWSER_AGENT_DESC). Set this as 'browserAgent' in ralph-config.json.
+- Auth mode: $AUTH_MODE (api-key = personal/solo use, protect all routes with DASHBOARD_KEY bearer token, no login/signup needed; better-auth = multi-user, implement full login/signup with Better Auth + Drizzle adapter). Set this as 'authMode' in ralph-config.json.
 
 SKIP Steps 1 and 2 (already answered above). Start directly from Step 3 (Technical Architecture Scan).
 Research the target product, generate ralph-config.json, check dependencies, rewrite config files, and install packages.
