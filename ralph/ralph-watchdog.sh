@@ -17,6 +17,13 @@ LOG_FILE="ralph-watchdog-$(date +%Y%m%d-%H%M%S).log"
 
 log() { echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
 
+# Resolve Python: prefer `uv run python3` if uv is available, fall back to bare python3
+if command -v uv &>/dev/null; then
+  PY="uv run python3"
+else
+  PY="python3"
+fi
+
 # Lock file
 if [ -f "$LOCKFILE" ]; then
   PID=$(cat "$LOCKFILE" 2>/dev/null)
@@ -27,7 +34,7 @@ if [ -f "$LOCKFILE" ]; then
   rm -f "$LOCKFILE"
 fi
 echo $$ > "$LOCKFILE"
-_BROWSER_AGENT=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
+_BROWSER_AGENT=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
 if [ "$_BROWSER_AGENT" = "ever" ]; then
   trap 'rm -f "$LOCKFILE"; ever stop 2>/dev/null' EXIT
 else
@@ -37,14 +44,14 @@ fi
 # ─── Helpers ───
 
 count_passes() {
-  python3 -c "
+  $PY -c "
 import json; d=json.load(open('prd.json'))
 print(sum(1 for x in d if x.get('build_pass', False)))
 " 2>/dev/null || echo "0"
 }
 
 total_tasks() {
-  python3 -c "import json; print(len(json.load(open('prd.json'))))" 2>/dev/null || echo "0"
+  $PY -c "import json; print(len(json.load(open('prd.json'))))" 2>/dev/null || echo "0"
 }
 
 all_passed() {
@@ -54,7 +61,7 @@ all_passed() {
 }
 
 qa_complete() {
-  python3 -c "
+  $PY -c "
 import json
 prd = json.load(open('prd.json'))
 unverified = [item['id'] for item in prd if not item.get('qa_pass', False)]
@@ -143,7 +150,7 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
   cron_backup
 
   QA_STATUS=$(qa_complete)
-  QA_PASSED=$(python3 -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo "0")
+  QA_PASSED=$($PY -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo "0")
   TOTAL=$(total_tasks)
 
   if [ "$QA_STATUS" = "true" ] && all_passed; then
