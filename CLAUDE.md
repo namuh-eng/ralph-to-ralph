@@ -49,9 +49,13 @@ Phase 1: Inspect (Claude + Ever CLI) → Phase 2: Build (Claude) → Phase 3: QA
 - **AWS CLI** — configure via `aws configure`. `aws` commands and `@aws-sdk/*` packages work out of the box.
 - **`.env`** — copy from `.env.example` and fill in your values
 
+## Authentication
+- Use **Better Auth** for all authentication — `npm install better-auth`
+- Match the target product's auth methods: email/password, OAuth providers (Google, GitHub, etc.), magic links
+- Protect routes via Next.js middleware (`src/middleware.ts`)
+- Store sessions in Postgres via Better Auth's built-in Drizzle adapter
+- Auth is **P1 priority** — build it before core features
+
 ## Out of Scope — DO NOT build
-- Login / signup / authentication (use API key auth wall instead)
 - Paywalls, billing, subscription management
-- Account settings, profile management
-- OAuth / SSO
 - Payment processing

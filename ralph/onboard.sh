@@ -125,6 +125,31 @@ echo "=== RALPH-TO-RALPH: Onboarding ==="
 echo "This will prepare the project for cloning a specific product."
 echo ""
 
+# ── Detect if user cloned the template directly (still has ralph-to-ralph as remote) ──
+_REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+if echo "$_REMOTE_URL" | grep -qiE "(jaeyunha|namuh-eng)/ralph-to-ralph"; then
+  echo "It looks like you cloned ralph-to-ralph directly."
+  echo "To start your own project, you should reinitialize git with a clean history."
+  echo ""
+  echo "  1) Reinitialize git now (recommended)"
+  echo "  2) Keep the existing history and continue"
+  echo ""
+  read -rp "Choose [1]: " _GIT_INIT_CHOICE
+  if [[ "${_GIT_INIT_CHOICE:-1}" == "1" ]]; then
+    echo ""
+    echo "Reinitializing git..."
+    rm -rf .git
+    git init -q
+    git add .
+    git -c user.email="user@localhost" -c user.name="User" commit -q -m "init: start project from ralph-to-ralph" 2>/dev/null \
+      || git commit -q -m "init: start project from ralph-to-ralph" \
+      || { echo "Warning: could not create initial commit (run 'git config --global user.email/user.name' first)."; }
+    echo "Done. Your project now has a clean git history."
+    echo "Set your own remote with: git remote add origin https://github.com/YOU/YOUR_REPO.git"
+    echo ""
+  fi
+fi
+
 # ── Detect partial state from a previous interrupted run ──
 if [ -f "ralph-config.json" ]; then
   PREV_TARGET=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('targetUrl', 'unknown'))" 2>/dev/null || echo "unknown")

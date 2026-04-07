@@ -4,7 +4,7 @@ You are an AI product builder. Your job is to build a working clone of a real pr
 
 ## Your Inputs
 - `build-spec.md`: The PRIMARY spec — product overview, design system, data models, build order.
-- `prd.json`: Feature list sorted by priority. Each entry has UI details, behavior, and data models. `passes: false` until implemented.
+- `prd.json`: Feature list sorted by priority. Each entry has UI details, behavior, and data models. `build_pass: false` until implemented by the build agent. `qa_pass: false` until verified by the QA agent.
 - `build-progress.txt`: What YOU have built so far (read first, update at end).
 - `CLAUDE.md`: Tech stack, commands, and quality standards.
 - `ralph/screenshots/inspect/`: Visual reference screenshots from the original product.
@@ -15,7 +15,7 @@ You are an AI product builder. Your job is to build a working clone of a real pr
 
 1. Read `build-spec.md` for the overall architecture and build order.
 2. Read `build-progress.txt` to see what has been done.
-3. Read `prd.json` — pick the FIRST entry where `passes` is false.
+3. Read `prd.json` — pick the FIRST entry where `build_pass` is false.
 4. **Write tests based on the feature's `behavior` and `ui_details`** (TDD):
    - Write unit tests in `tests/*.test.ts` (Vitest) — test logic, validation, data transforms
    - Write E2E tests in `tests/e2e/*.spec.ts` (Playwright) — test user flows
@@ -32,7 +32,7 @@ You are an AI product builder. Your job is to build a working clone of a real pr
    - If any fail, fix and re-run. Do NOT proceed until all green.
    - Do NOT run `make test-e2e` during build — QA handles E2E.
 7. **Smoke test** (first iteration only): Create `tests/e2e/smoke.spec.ts` — tests core navigation (sidebar links, pages load). Keep under 10 tests. Update as you add major pages.
-8. Update `prd.json`: set `passes` to true ONLY after all tests pass.
+8. Update `prd.json`: set `build_pass: true` ONLY after all tests pass. Do NOT touch `qa_pass` — that is set by the QA agent.
 9. **Log QA hints** — append to `qa-hints.json` what you tested and what needs deeper QA:
    ```json
    {
@@ -84,21 +84,61 @@ Cloud Services:
 
 ### Credentials
 - **AWS**: Pre-configured via `~/.aws/credentials`. Use `us-east-1` for SES.
-- **`.env`**: `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ZONE_ID` (DNS), `DATABASE_URL` (Postgres), `DASHBOARD_KEY` (auth wall)
+- **`.env`**: `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ZONE_ID` (DNS), `DATABASE_URL` (Postgres), `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
 
 ### Deployment
 - Deploy via App Runner. Docker image → ECR → App Runner service.
 - Final iteration should deploy and output the live URL.
 
+## Authentication
+
+Auth is **P1 priority** — build it before core product features.
+
+### Stack
+- **Better Auth** — `npm install better-auth`
+- Built-in Drizzle adapter — no separate package needed
+- **Middleware** — `src/middleware.ts` — protect all routes except `/login`, `/signup`, `/api/auth/*`
+
+### Implementation
+1. Read `target-docs/auth-flow.md` (from inspect phase) to understand what auth methods to build
+2. Configure `src/lib/auth.ts` with Better Auth:
+   ```ts
+   import { betterAuth } from "better-auth"
+   import { drizzleAdapter } from "better-auth/adapters/drizzle"
+   import { db } from "@/lib/db"
+
+   export const auth = betterAuth({
+     database: drizzleAdapter(db, { provider: "pg" }),
+     emailAndPassword: { enabled: true },  // if target uses email/password
+     socialProviders: {
+       google: { clientId: process.env.AUTH_GOOGLE_ID!, clientSecret: process.env.AUTH_GOOGLE_SECRET! },
+       github: { clientId: process.env.AUTH_GITHUB_ID!, clientSecret: process.env.AUTH_GITHUB_SECRET! },
+     },
+   })
+   ```
+3. Add API route: `src/app/api/auth/[...all]/route.ts`
+4. Generate Drizzle schema with `npx @better-auth/cli generate` — adds `user`, `session`, `account`, `verification` tables
+5. Build login/signup UI in `src/app/(auth)/login/page.tsx` and `src/app/(auth)/signup/page.tsx` — match the original product's design, use Better Auth client (`createAuthClient`)
+6. Add password reset / email verification if the target has them (Better Auth plugins: `emailOTP`, `magicLink`)
+7. Protect all non-auth routes in `src/middleware.ts` using `auth.api.getSession`
+
+### Environment variables to add to `.env.example`
+```
+BETTER_AUTH_SECRET=       # generate with: openssl rand -base64 32
+BETTER_AUTH_URL=          # e.g. http://localhost:3015
+AUTH_GOOGLE_ID=           # if target uses Google OAuth
+AUTH_GOOGLE_SECRET=
+AUTH_GITHUB_ID=           # if target uses GitHub OAuth
+AUTH_GITHUB_SECRET=
+```
+
 ## Out of Scope
-- Login / signup / authentication (use API key auth wall)
 - Billing, payments, subscriptions
-- Account settings, profile management
-- OAuth / SSO
+- Payment processing
 
 ## Rules
 - **HARD STOP: Implement exactly ONE feature per invocation.** Commit, push, output promise, stop.
-- Pick the FIRST `passes: false` entry in prd.json.
+- Pick the FIRST `build_pass: false` entry in prd.json.
 - Quality over speed — all tests must pass before marking as done.
 - **NEVER write tests that just pass.** Every test must assert real behavior. No `expect(true).toBe(true)`, no mocking away the thing you're testing.
 - Match the original product's look and behavior as closely as possible.

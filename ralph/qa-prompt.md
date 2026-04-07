@@ -44,6 +44,34 @@ Also run full `make test-e2e` to catch cross-feature regressions.
    - Compare against `ralph/screenshots/inspect/` and `behavior` field
    - Test edge cases: empty inputs, rapid clicks, unexpected data
 
+<important if="category is auth">
+### Step 3: Auth Verification
+Test the full authentication flow end-to-end:
+
+**Login flow:**
+- Navigate to `/login` — does the page render correctly?
+- Submit with invalid credentials — does it show an error message?
+- Submit with valid credentials — does it redirect to the dashboard?
+- Test each auth method the target supports (email/password, OAuth, magic link)
+
+**Signup flow:**
+- Navigate to `/signup` — does it render correctly?
+- Submit with missing required fields — does validation trigger?
+- Complete signup — does it create a user in Postgres and log them in?
+- If email verification is required — does the verification email send?
+
+**Session & protected routes:**
+- Log out — does it clear the session and redirect to `/login`?
+- Access a protected route while logged out — does it redirect to `/login`?
+- Refresh the page while logged in — does the session persist?
+
+**Password reset (if applicable):**
+- Submit the forgot password form — does the reset email send?
+- Use the reset link — does it allow setting a new password?
+
+Verify users/sessions are correctly stored in Postgres via Drizzle.
+</important>
+
 <important if="category is infrastructure, crud, or sdk">
 ### Step 3: Real Backend Verification
 8. Verify real infrastructure, not mocks:
@@ -67,22 +95,30 @@ Also run full `make test-e2e` to catch cross-feature regressions.
 </important>
 
 ### Record & Fix
-14. Record findings in `qa-report.json`:
+14. Record findings in `qa-report.json` — **append a NEW entry, never overwrite previous ones**:
     ```json
     {
       "feature_id": "feature-001",
+      "attempt": 1,
       "status": "pass|fail|partial",
       "tested_steps": ["step 1 result"],
-      "bugs_found": [{ "severity": "critical|major|minor|cosmetic", "description": "...", "expected": "...", "actual": "...", "reproduction": "..." }]
+      "bugs_found": [{ "severity": "critical|major|minor|cosmetic", "description": "...", "expected": "...", "actual": "...", "reproduction": "..." }],
+      "fix_description": "brief description of what fix was attempted (or 'no fix needed' if passed)"
     }
     ```
+    If a `== QA HISTORY ==` section is provided in your prompt, read all previous attempts before deciding your fix strategy — do not repeat an approach that already failed.
 15. If bugs found: fix ALL bugs for this feature, then run `make check && make test` once. Commit together: `git commit -m "QA fix: <feature> — fixed N bugs: <brief list>"`
-16. `git add -A`, detailed commit message, `git push`.
+16. Update `prd.json` for this feature:
+    - Set `qa_pass: true` if all bugs are fixed and feature works end-to-end.
+    - Set `qa_pass: false` if bugs remain unfixed (so the QA loop retries this feature).
+    - Do NOT touch `build_pass` — that is owned by the build agent.
+17. `git add -A`, detailed commit message, `git push`.
 
 ## Rules
 - **HARD STOP: Test exactly ONE feature per invocation.** Commit, push, output promise, stop.
 - Be skeptical. Assume things are broken until proven otherwise.
 - Fix ALL bugs for the feature, then test once before committing.
 - **NEVER weaken or delete tests to make them pass.** Fix the code, not the test.
+- Always update `qa_pass` in `prd.json` before outputting the promise.
 - Output `<promise>NEXT</promise>` after committing if more features remain.
-- Output `<promise>QA_COMPLETE</promise>` only if ALL features are QA tested and all bugs fixed.
+- Output `<promise>QA_COMPLETE</promise>` only if ALL features are QA tested and all `qa_pass: true`.
