@@ -64,6 +64,13 @@ maybe_prompt_to_star_repo() {
   ) 2>/dev/null || true
 }
 
+# Resolve Python: prefer `uv run python3` if uv is available, fall back to bare python3
+if command -v uv &>/dev/null; then
+  PY="uv run python3"
+else
+  PY="python3"
+fi
+
 # ── Handle --reset flag ──
 if [[ "${1:-}" == "--reset" ]]; then
   echo "=== Resetting onboarding state ==="
@@ -152,7 +159,7 @@ fi
 
 # ── Detect partial state from a previous interrupted run ──
 if [ -f "ralph-config.json" ]; then
-  PREV_TARGET=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('targetUrl', 'unknown'))" 2>/dev/null || echo "unknown")
+  PREV_TARGET=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('targetUrl', 'unknown'))" 2>/dev/null || echo "unknown")
   echo "Found existing ralph-config.json (target: $PREV_TARGET)"
   echo ""
   echo "Options:"
@@ -164,7 +171,7 @@ if [ -f "ralph-config.json" ]; then
     1)
       echo ""
       echo "Validating existing config..."
-      python3 -c "
+      $PY -c "
 import json, sys
 c = json.load(open('ralph-config.json'))
 required = ['targetUrl', 'targetName', 'cloudProvider', 'framework', 'database']
@@ -177,8 +184,8 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
     sys.exit(1)
 print('Config is valid.')
 " || { echo "Config is invalid. Run ./ralph/onboard.sh --reset to start fresh."; exit 1; }
-      TARGET_URL=$(python3 -c "import json; print(json.load(open('ralph-config.json'))['targetUrl'])")
-      BROWSER_AGENT=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
+      TARGET_URL=$($PY -c "import json; print(json.load(open('ralph-config.json'))['targetUrl'])")
+      BROWSER_AGENT=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
       echo ""
       echo "=== Resuming with existing config ==="
       echo "Target: $TARGET_URL"
@@ -663,7 +670,7 @@ elif [[ "$result" == *"<promise>ONBOARD_COMPLETE</promise>"* ]]; then
   fi
 
   # Lightweight schema validation — catch prompt drift early
-  python3 -c "
+  $PY -c "
 import json, sys
 c = json.load(open('ralph-config.json'))
 required = ['targetUrl', 'targetName', 'cloudProvider', 'framework', 'database']
@@ -677,7 +684,7 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
 " || exit 1
 
   # ── Write setup verification results to ralph-config.json ──
-  python3 -c "
+  $PY -c "
 import json, subprocess, os
 
 config = json.load(open('ralph-config.json'))
@@ -782,7 +789,7 @@ print('')
     codex exec "Generate a bash preflight script (scripts/preflight.sh) for the following stack:
 
 Stack description: $CUSTOM_STACK_DESC
-Clone name: $(python3 -c "import json; print(json.load(open('ralph-config.json'))['targetName'])" 2>/dev/null || echo '__APP_NAME__')
+Clone name: $($PY -c "import json; print(json.load(open('ralph-config.json'))['targetName'])" 2>/dev/null || echo '__APP_NAME__')
 ralph-config.json: $(cat ralph-config.json 2>/dev/null || echo '{}')
 
 Requirements:
