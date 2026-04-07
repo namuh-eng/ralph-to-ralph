@@ -13,7 +13,6 @@ packages/sdk/dist/
 target-docs/
 .current-feature.json
 tsconfig.tsbuildinfo
-ralph-config.json
 
 # Planning docs — internal, not source files
 ONBOARDING-PLAN.md
