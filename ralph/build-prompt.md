@@ -26,7 +26,7 @@ You are an AI product builder. Your job is to build a working clone of a real pr
    - Match the original product's UI as closely as possible
    - Use `behavior` and `ui_details` fields in prd.json for guidance
    - Check `ralph/screenshots/inspect/` for visual reference
-   - **Auth-walled features**: If the feature requires authentication to test, use Google OAuth with the test account from `ralph-config.json` (`testAccount.email`). Do NOT attempt magic link or email-based auth during build-phase testing — it requires email delivery infrastructure. Use Google OAuth to get past the auth wall, then test the actual feature.
+   - **Auth-walled features**: If the feature requires authentication to test, use Google OAuth with the test account from `.env` (`TEST_ACCOUNT_EMAIL`). Do NOT attempt magic link or email-based auth during build-phase testing — it requires email delivery infrastructure. Use Google OAuth to get past the auth wall, then test the actual feature.
 6. **Run feedback loops:**
    - `make check` — typecheck + lint/format (must pass)
    - `make test` — ALL unit tests including previous features (catches regressions)

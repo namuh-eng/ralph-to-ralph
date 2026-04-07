@@ -58,11 +58,11 @@ If Google OAuth is too complex for Playwright (it involves third-party redirects
 5. Start dev server if not running (`npm run dev`).
 6. Open clone in Ever CLI: `ever start --url http://localhost:3015` (reuse existing session if running).
 7. **Check if you're logged in** — navigate to any app page. If redirected to `/login`, authenticate first:
-   - Read `ralph-config.json` for `testAccount` — it specifies which auth provider and email to use.
+   - Read `TEST_ACCOUNT_EMAIL` from `.env` for the Google account to use. If not set, check `ralph-config.json` for `testAccount.provider`.
    - **Always use Google OAuth** (click "Continue with Google" and select the test account email) unless you are SPECIFICALLY testing email/magic-link auth (e.g. `auth-002`).
    - Do NOT test magic link auth as part of general feature QA — that flow requires email delivery and should only be tested in its own dedicated feature.
    - After logging in, verify the session is active before proceeding with feature tests.
-   - If no `testAccount` is configured, use whichever Google account the browser is already logged into.
+   - If `TEST_ACCOUNT_EMAIL` is not in `.env`, use whichever Google account the browser is already logged into.
 
 ### Step 3: Manual Verification (Ever CLI)
 8. Test the feature thoroughly:
@@ -77,7 +77,7 @@ Test the full authentication flow end-to-end:
 
 **Login flow:**
 - Navigate to `/login` — does the page render correctly?
-- **Use Google OAuth** (from `testAccount` in ralph-config.json) as the primary login method for testing.
+- **Use Google OAuth** (with `TEST_ACCOUNT_EMAIL` from `.env`) as the primary login method for testing.
 - Only test magic link/email auth if THIS specific feature is about magic link auth (e.g. `auth-002`). For magic link testing, ensure SES is configured or use a dev email fallback.
 - Submit with valid credentials — does it redirect to the dashboard?
 

@@ -289,12 +289,13 @@ By now you know their scale, what they have, and what they need. Just fill in th
 4. **Test account for auth** — If the target product needs auth (most do):
    > "For testing auth-walled features, the build and QA agents need a Google account to log in with. Which Google account is your browser already logged into? (This is the email Ever CLI will use to complete OAuth flows automatically.)"
    
-   Store the answer in `ralph-config.json` as `testAccount`:
+   Store the provider in `ralph-config.json`:
    ```json
-   "testAccount": {
-     "provider": "google",
-     "email": "user@gmail.com"
-   }
+   "testAccount": { "provider": "google" }
+   ```
+   And write the email to `.env` (gitignored, never committed):
+   ```bash
+   TEST_ACCOUNT_EMAIL=user@gmail.com
    ```
 
 5. **Deploy after build?** — "Should I deploy when done, or keep it local?"
