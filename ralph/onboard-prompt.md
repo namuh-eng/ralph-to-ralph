@@ -170,6 +170,7 @@ The `setup` section is optional for backwards compatibility — older configs wi
 **Valid cloudProvider values:** `vercel`, `aws`, `gcp`, `azure`, `custom`.
 **Valid deploymentTier values:** `personal`, `team`.
 - `browserAgent`: "ever" | "playwright" | "stagehand" | "custom" — browser agent for inspect and QA phases
+- `testAccount`: `{ "provider": "google", "email": "user@gmail.com" }` — Google account for auth during build/QA testing. The build and QA agents use this to log in via Google OAuth instead of attempting email/magic-link auth (which requires email delivery). Should be the Google account the user's browser is already logged into, so Ever CLI can complete OAuth flows automatically.
 
 **Stack rules:**
 - `cloudProvider: "vercel"` + `deploymentTier: "personal"` → deploy via Vercel CLI, database is Neon serverless Postgres (`dbProvider: "neon"`). No VPC, no cloud CLI needed beyond `vercel`. Best for personal/solo use.
