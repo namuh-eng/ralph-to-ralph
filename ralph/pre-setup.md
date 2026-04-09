@@ -2,7 +2,23 @@
 
 Everything listed here is already installed and configured. Do NOT reinstall, reconfigure, or overwrite these.
 
-## Tooling
+## Stack Profile
+
+Check `stackProfile` in `ralph-config.json` before making framework and dependency decisions. The stack profile determines architecture — which services to initialize, how to structure `src/`, and which dependencies to install.
+
+| `stackProfile` | Architecture | Key additions |
+|---------------|-------------|---------------|
+| `dashboard-app` | Next.js full-stack, API routes in `src/app/api/` | Better Auth (if multi-user) |
+| `api-service` | Separate API server + Next.js frontend | Redis, BullMQ, SDK package |
+| `platform` | Control plane (Next.js) + worker service | Redis Pub/Sub, CLI package |
+| `content-app` | Next.js with ISR/SSG, editor + reader routes | Image storage, CDN headers |
+| `realtime-app` | WebSocket server + Next.js frontend | Redis Pub/Sub, WS client |
+
+See `ralph/stack-profiles.md` for the full architecture details of each profile.
+
+If `stackProfile` is missing from `ralph-config.json`, default to `dashboard-app`.
+
+## Tooling (Pre-configured — DO NOT reinstall)
 - **Next.js 16** — `next.config.js` (standalone output for Docker, Turbopack)
 - **TypeScript** — `tsconfig.json` (strict mode, `@/` path aliases)
 - **Tailwind CSS** — `tailwind.config.ts` + `postcss.config.js` (dark mode, src paths)
