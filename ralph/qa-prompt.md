@@ -27,9 +27,13 @@ The original product is your **source of truth**.
 2. The current feature to test is passed to you directly (you don't need to search prd.json). Note its `category`.
 3. Read `qa-hints.json` for this feature's entry — the build agent logged what it tested and what **needs deeper QA**. Focus on the `needs_deeper_qa` items.
 
-### Step 1: Automated checks
-3. Run `make test` to verify unit tests still pass. Fix any failures before proceeding.
-4. Run smoke E2E: `npx playwright test tests/e2e/smoke.spec.ts`
+---
+
+## SUB-PHASE A: FUNCTIONAL
+
+### Step A1: Automated checks
+Run `make test` to verify unit tests still pass. Fix any failures before proceeding.
+Run smoke E2E: `npx playwright test tests/e2e/smoke.spec.ts`
 
 <important if="your fix touched shared code (layout, API client, auth middleware, routing, reusable components)">
 Also run full `make test-e2e` to catch cross-feature regressions.
@@ -54,18 +58,18 @@ If Google OAuth is too complex for Playwright (it involves third-party redirects
 
 **Do NOT skip this step.** Every E2E test behind an auth wall will fail without it. Do NOT weaken tests by removing auth checks — fix the test infrastructure instead.
 
-### Step 2: Authenticate Before Testing
-5. Start dev server if not running (`npm run dev`).
-6. Open clone in Ever CLI: `ever start --url http://localhost:3015` (reuse existing session if running).
-7. **Check if you're logged in** — navigate to any app page. If redirected to `/login`, authenticate first:
+### Step A2: Authenticate Before Testing
+Start dev server if not running (`npm run dev`).
+Open clone in Ever CLI: `ever start --url http://localhost:3015` (reuse existing session if running).
+**Check if you're logged in** — navigate to any app page. If redirected to `/login`, authenticate first:
    - Read `TEST_ACCOUNT_EMAIL` from `.env` for the Google account to use. If not set, check `ralph-config.json` for `testAccount.provider`.
    - **Always use Google OAuth** (click "Continue with Google" and select the test account email) unless you are SPECIFICALLY testing email/magic-link auth (e.g. `auth-002`).
    - Do NOT test magic link auth as part of general feature QA — that flow requires email delivery and should only be tested in its own dedicated feature.
    - After logging in, verify the session is active before proceeding with feature tests.
    - If `TEST_ACCOUNT_EMAIL` is not in `.env`, use whichever Google account the browser is already logged into.
 
-### Step 3: Manual Verification (Ever CLI)
-8. Test the feature thoroughly:
+### Step A3: Manual Verification (Ever CLI)
+Test the feature thoroughly:
    - Navigate to the relevant page, `ever snapshot`
    - Follow `steps` from prd.json to verify each acceptance criterion
    - Compare against `ralph/screenshots/inspect/` and `behavior` field
@@ -100,8 +104,8 @@ Verify users/sessions are correctly stored in Postgres via Drizzle.
 </important>
 
 <important if="category is infrastructure, crud, or sdk">
-### Step 3: Real Backend Verification
-8. Verify real infrastructure, not mocks:
+### Step A4: Real Backend Verification
+Verify real infrastructure, not mocks:
    - Test via curl/SDK directly, not just UI
    - Send real email → arrives in inbox?
    - Create domain → SES generates DKIM? Cloudflare gets DNS records?
@@ -109,42 +113,218 @@ Verify users/sessions are correctly stored in Postgres via Drizzle.
 </important>
 
 <important if="category is sdk AND packages/sdk/ exists">
-### Step 4: SDK Verification
-9. Run `cd packages/sdk && npm test`
-10. Test SDK manually: import, call API, verify response
-11. Test React rendering if supported
+### Step A5: SDK Verification
+Run `cd packages/sdk && npm test`
+Test SDK manually: import, call API, verify response
+Test React rendering if supported
 </important>
 
 <important if="this is the deployment feature">
-### Step 5: Deployment Verification
-12. Is the app live? Does the deployed version match localhost?
-13. Test live URL with same curl/SDK commands.
+### Step A6: Deployment Verification
+Is the app live? Does the deployed version match localhost?
+Test live URL with same curl/SDK commands.
 </important>
 
-### Record & Fix
-14. Record findings in `qa-report.json` — **append a NEW entry, never overwrite previous ones**:
-    ```json
-    {
-      "feature_id": "feature-001",
-      "attempt": 1,
-      "status": "pass|fail|partial",
-      "tested_steps": ["step 1 result"],
-      "bugs_found": [{ "severity": "critical|major|minor|cosmetic", "description": "...", "expected": "...", "actual": "...", "reproduction": "..." }],
-      "fix_description": "brief description of what fix was attempted (or 'no fix needed' if passed)"
+---
+
+## SUB-PHASE B: API CONTRACT
+
+Test every API endpoint relevant to this feature for correct shapes, status codes, and error formats.
+
+### Step B1: Discover Endpoints
+List the API routes for this feature:
+```bash
+find src/app/api -name "route.ts" | sort
+```
+Identify all endpoints touched by the feature under test.
+
+### Step B2: Happy-path contract checks
+For each endpoint, send a valid request with curl and verify:
+- HTTP status code matches expectation (200, 201, etc.)
+- Response body shape matches the documented/expected schema (required fields present, correct types)
+- Content-Type is `application/json`
+
+Example:
+```bash
+curl -s -X GET http://localhost:3015/api/<endpoint> \
+  -H "Authorization: Bearer $DASHBOARD_KEY" \
+  -H "Content-Type: application/json" | jq .
+```
+
+### Step B3: Error format checks
+Verify consistent error responses:
+- Missing required fields → 400 with `{ error: string }` or `{ errors: [...] }`
+- Invalid auth → 401
+- Not found → 404
+- Server error → 500 (never leaks stack traces)
+
+```bash
+# Missing auth
+curl -s -X GET http://localhost:3015/api/<endpoint> | jq .
+# Expected: 401 { "error": "Unauthorized" }
+
+# Bad input
+curl -s -X POST http://localhost:3015/api/<endpoint> \
+  -H "Authorization: Bearer $DASHBOARD_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}' | jq .
+# Expected: 400 with error details
+```
+
+### Step B4: Record API contract results
+Note any endpoint that returns wrong status codes, malformed bodies, or inconsistent error shapes. These are API contract bugs — fix them before moving on.
+
+---
+
+## SUB-PHASE C: SECURITY
+
+Run targeted security checks relevant to this feature. Focus on the most impactful checks; do not run exhaustive scans.
+
+### Step C1: Auth bypass
+Try accessing every API endpoint for this feature without authentication:
+```bash
+curl -s -X GET http://localhost:3015/api/<endpoint> | jq .
+# Must return 401, never 200 with data
+```
+Try accessing protected UI pages without a session:
+```bash
+curl -s -L http://localhost:3015/<protected-page> | grep -i "login\|unauthorized"
+```
+
+### Step C2: Input sanitization
+Test inputs that could cause injection or unexpected behavior:
+```bash
+# SQL injection probe
+curl -s -X POST http://localhost:3015/api/<endpoint> \
+  -H "Authorization: Bearer $DASHBOARD_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"field": "'"'"' OR 1=1 --"}' | jq .
+
+# XSS probe (check if reflected unsanitized in response)
+curl -s -X POST http://localhost:3015/api/<endpoint> \
+  -H "Authorization: Bearer $DASHBOARD_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"field": "<script>alert(1)</script>"}' | jq .
+```
+Verify: no SQL errors leaked, XSS payloads not reflected as raw HTML.
+
+### Step C3: CORS check
+```bash
+curl -s -I -X OPTIONS http://localhost:3015/api/<endpoint> \
+  -H "Origin: https://evil.com" \
+  -H "Access-Control-Request-Method: POST" | grep -i "access-control"
+```
+Verify: `Access-Control-Allow-Origin` does NOT echo back `https://evil.com` or `*` for credentialed routes.
+
+### Step C4: Sensitive data exposure
+Check that API responses never leak:
+- Passwords or password hashes
+- Full database IDs where short/opaque IDs should be used
+- Internal server paths or stack traces
+- Environment variable values
+
+### Step C5: Record security results
+Note any bypass, injection success, CORS misconfiguration, or data leak. Fix critical/major security findings before moving on.
+
+---
+
+## SUB-PHASE D: ACCESSIBILITY
+
+Run axe-core accessibility checks on every page touched by this feature.
+
+### Step D1: Install axe if needed
+```bash
+npm list @axe-core/playwright 2>/dev/null || npm install --save-dev @axe-core/playwright
+```
+
+### Step D2: Run axe scan via Playwright
+Create or run a temporary accessibility test:
+```bash
+cat > /tmp/axe-check.ts << 'EOF'
+import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+test('accessibility: <feature page>', async ({ page }) => {
+  await page.goto('http://localhost:3015/<feature-path>');
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa'])
+    .analyze();
+  console.log(JSON.stringify(results.violations.map(v => ({
+    id: v.id,
+    impact: v.impact,
+    description: v.description,
+    nodes: v.nodes.length
+  })), null, 2));
+  // Fail on critical violations only; log others
+  const critical = results.violations.filter(v => v.impact === 'critical');
+  expect(critical, 'Critical accessibility violations found').toHaveLength(0);
+});
+EOF
+npx playwright test /tmp/axe-check.ts --reporter=list
+```
+
+### Step D3: Manual accessibility spot-checks (Ever CLI)
+- `ever snapshot` and check: are interactive elements keyboard-navigable?
+- Do form inputs have visible labels?
+- Are error messages associated with their inputs (aria)?
+- Is color contrast sufficient for text on colored backgrounds?
+
+### Step D4: Record accessibility results
+List any WCAG 2.0 AA violations found. Fix critical violations. Log serious/moderate as known issues.
+
+---
+
+## Record & Fix
+
+After all sub-phases are complete, record findings in `qa-report.json` — **append a NEW entry, never overwrite previous ones**:
+```json
+{
+  "feature_id": "feature-001",
+  "attempt": 1,
+  "status": "pass|fail|partial",
+  "sub_phases": {
+    "functional": {
+      "status": "pass|fail|skip",
+      "notes": "brief summary"
+    },
+    "api_contract": {
+      "status": "pass|fail|skip",
+      "endpoints_tested": ["GET /api/foo", "POST /api/foo"],
+      "notes": "brief summary"
+    },
+    "security": {
+      "status": "pass|fail|skip",
+      "checks": ["auth_bypass", "input_sanitization", "cors", "data_exposure"],
+      "notes": "brief summary"
+    },
+    "accessibility": {
+      "status": "pass|fail|skip",
+      "violations": [],
+      "notes": "brief summary"
     }
-    ```
-    If a `== QA HISTORY ==` section is provided in your prompt, read all previous attempts before deciding your fix strategy — do not repeat an approach that already failed.
-15. If bugs found: fix ALL bugs for this feature, then run `make check && make test` once. Commit together: `git commit -m "QA fix: <feature> — fixed N bugs: <brief list>"`
-16. Update `prd.json` for this feature:
-    - Set `qa_pass: true` if all bugs are fixed and feature works end-to-end.
-    - Set `qa_pass: false` if bugs remain unfixed (so the QA loop retries this feature).
-    - Do NOT touch `build_pass` — that is owned by the build agent.
-17. `git add -A`, detailed commit message, `git push`.
+  },
+  "tested_steps": ["step 1 result"],
+  "bugs_found": [{ "severity": "critical|major|minor|cosmetic", "phase": "functional|api_contract|security|accessibility", "description": "...", "expected": "...", "actual": "...", "reproduction": "..." }],
+  "fix_description": "brief description of what fix was attempted (or 'no fix needed' if passed)"
+}
+```
+If a `== QA HISTORY ==` section is provided in your prompt, read all previous attempts before deciding your fix strategy — do not repeat an approach that already failed.
+
+After recording, fix ALL bugs found across all sub-phases for this feature, then run `make check && make test` once. Commit together: `git commit -m "QA fix: <feature> — fixed N bugs: <brief list>"`
+
+Update `prd.json` for this feature:
+- Set `qa_pass: true` if all critical bugs are fixed and feature works end-to-end.
+- Set `qa_pass: false` if critical bugs remain unfixed (so the QA loop retries this feature).
+- Do NOT touch `build_pass` — that is owned by the build agent.
+
+`git add -A`, detailed commit message, `git push`.
 
 ## Rules
 - **HARD STOP: Test exactly ONE feature per invocation.** Commit, push, output promise, stop.
+- Run all four sub-phases (FUNCTIONAL, API CONTRACT, SECURITY, ACCESSIBILITY) for every feature.
+- Skip a sub-phase only if it is genuinely not applicable (e.g., a static page has no API endpoints).
 - Be skeptical. Assume things are broken until proven otherwise.
-- Fix ALL bugs for the feature, then test once before committing.
+- Fix ALL critical/major bugs for the feature, then test once before committing.
 - **NEVER weaken or delete tests to make them pass.** Fix the code, not the test.
 - Always update `qa_pass` in `prd.json` before outputting the promise.
 - Output `<promise>NEXT</promise>` after committing if more features remain.

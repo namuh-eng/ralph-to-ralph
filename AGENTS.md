@@ -13,7 +13,41 @@ An autonomously-built clone of a SaaS product. It has its own backend (AWS servi
 - `make all` — check + test
 - `npm run dev` — start dev server (if not already running)
 
-## How To Test
+## QA Sub-Phases
+
+Every feature is tested across four sub-phases. Run them in order; skip only if genuinely not applicable.
+
+### Sub-Phase A: FUNCTIONAL
+Automated and manual verification that the feature works as specified.
+- Run `make test` (unit tests) and `make test-e2e` (Playwright E2E)
+- Authenticate via Ever CLI: `ever start --url http://localhost:3015`
+- Navigate to the feature page, `ever snapshot`, follow PRD acceptance criteria
+- Test edge cases: empty inputs, rapid clicks, unexpected data
+- If auth is required: set up Playwright auth fixture (`tests/e2e/auth.setup.ts`) — never skip
+
+### Sub-Phase B: API CONTRACT
+Verify every API endpoint for this feature returns correct shapes, status codes, and error formats.
+- Discover endpoints: `find src/app/api -name "route.ts" | sort`
+- Happy-path: curl each endpoint, check status + response body shape + Content-Type
+- Error paths: missing fields → 400, no auth → 401, not found → 404, server error → 500 (no stack traces)
+- Fix any endpoint that returns wrong status codes, malformed bodies, or inconsistent error shapes
+
+### Sub-Phase C: SECURITY
+Targeted checks for the most impactful vulnerabilities.
+- **Auth bypass**: curl every endpoint without a token — must return 401, never 200 with data
+- **Input sanitization**: probe SQL injection and XSS payloads — no errors leaked, no raw HTML reflected
+- **CORS**: OPTIONS request with `Origin: https://evil.com` — `Access-Control-Allow-Origin` must not echo it back
+- **Data exposure**: responses must never leak passwords, stack traces, or env variable values
+- Fix all critical/major security findings before moving on
+
+### Sub-Phase D: ACCESSIBILITY
+axe-core scan + manual spot-checks for WCAG 2.0 AA compliance.
+- Install if needed: `npm install --save-dev @axe-core/playwright`
+- Run axe scan via Playwright on every page touched by the feature (tags: wcag2a, wcag2aa)
+- Manual checks via Ever CLI: keyboard navigation, form labels, aria associations, color contrast
+- Fix critical violations; log serious/moderate as known issues in qa-report.json
+
+## How To Test (Quick Reference)
 
 ### Step 1: Automated regression (fast)
 Run `make test-e2e` first. This catches obvious breakage in seconds.
