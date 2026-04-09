@@ -104,7 +104,10 @@ def priority_key(item):
 
 candidates = [item for item in prd if item['id'] not in done]
 candidates.sort(key=priority_key)
-target = candidates[0] if candidates else None
+# Skip features whose dependencies haven't been QA'd yet (fallback to best candidate to avoid deadlock)
+candidate_ids = {item['id'] for item in candidates}
+ready = [item for item in candidates if not (set(item.get('dependent_on', [])) & candidate_ids)]
+target = ready[0] if ready else (candidates[0] if candidates else None)
 
 if not target:
     print('ALL_DONE')
@@ -221,7 +224,7 @@ except:
     print('No qa-hints.json found.')
 " 2>/dev/null)
 
-  result=$(timeout $QA_TIMEOUT codex exec --dangerously-bypass-approvals-and-sandbox \
+  result=$(timeout "$QA_TIMEOUT" codex exec --dangerously-bypass-approvals-and-sandbox \
 "$(cat ralph/qa-prompt.md)
 
 == FEATURE TO TEST ==

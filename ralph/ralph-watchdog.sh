@@ -21,23 +21,25 @@ log() { echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
 MAX_WALL_CLOCK_HOURS="${MAX_WALL_CLOCK_HOURS:-12}"
 START_EPOCH=$(date +%s)
 
-check_time_budget() {
-  local now=$(date +%s)
-  local elapsed_hours=$(( (now - START_EPOCH) / 3600 ))
-  if [ "$elapsed_hours" -ge "$MAX_WALL_CLOCK_HOURS" ]; then
-    log "TIME BUDGET EXHAUSTED (${elapsed_hours}h >= ${MAX_WALL_CLOCK_HOURS}h limit)."
-    log "Build: $(count_passes)/$(total_tasks) | QA: $($PY -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo '?')/$(total_tasks)"
-    log "Increase MAX_WALL_CLOCK_HOURS env var to allow more time."
-    exit 0
-  fi
-}
-
 # Resolve Python: prefer `uv run python3` if uv is available, fall back to bare python3
 if command -v uv &>/dev/null; then
   PY="uv run python3"
 else
   PY="python3"
 fi
+
+check_time_budget() {
+  local now=$(date +%s)
+  local max_seconds=$(( MAX_WALL_CLOCK_HOURS * 3600 ))
+  local elapsed=$(( now - START_EPOCH ))
+  if [ "$elapsed" -ge "$max_seconds" ]; then
+    local elapsed_hours=$(( elapsed / 3600 ))
+    log "TIME BUDGET EXHAUSTED (${elapsed_hours}h >= ${MAX_WALL_CLOCK_HOURS}h limit)."
+    log "Build: $(count_passes)/$(total_tasks) | QA: $($PY -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo '?')/$(total_tasks)"
+    log "Increase MAX_WALL_CLOCK_HOURS env var to allow more time."
+    exit 2  # time budget exhausted, work incomplete
+  fi
+}
 
 # Lock file
 if [ -f "$LOCKFILE" ]; then
