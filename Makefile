@@ -1,4 +1,4 @@
-.PHONY: check test test-e2e typecheck lint format fix all dev build clean
+.PHONY: check test test-e2e test-integration typecheck lint format fix all dev down logs build clean db-studio
 .PHONY: check-header test-header check-verbose test-verbose
 
 # Full validation: check + test
@@ -50,10 +50,6 @@ check-verbose:
 test-verbose:
 	@VERBOSE=1 $(MAKE) test
 
-# Dev server
-dev:
-	npm run dev
-
 # Production build
 build:
 	npm run build
@@ -67,6 +63,25 @@ db-migrate:
 
 db-push:
 	npx drizzle-kit push --config drizzle.config.ts
+
+# Docker Compose dev environment (starts postgres + redis + mailpit, then dev server)
+dev:
+	docker compose -f docker-compose.dev.yml up -d && npm run dev
+
+down:
+	docker compose -f docker-compose.dev.yml down
+
+logs:
+	docker compose -f docker-compose.dev.yml logs -f
+
+# Integration tests (real DB, not mocks)
+test-integration:
+	@. ./hack/run_silent.sh && \
+	run_silent_with_test_count "Integration Tests passed" "npx vitest run --config vitest.config.ts --reporter=verbose tests/integration" "vitest"
+
+# Drizzle Studio
+db-studio:
+	npx drizzle-kit studio --config drizzle.config.ts
 
 # Clean build artifacts
 clean:

@@ -11,15 +11,47 @@ You are an AI product builder. Your job is to build a working clone of a real pr
 - `ralph/screenshots/build/`: Your own verification screenshots (save yours here).
 - `target-docs/`: Extracted docs — API reference, guides, SDK examples.
 
+## Context Window Management
+
+Before reading any files, minimize what you load:
+
+1. **`prd.json`**: Do NOT load the full file. Use `jq` to extract only the first `build_pass: false` feature plus its direct dependencies:
+   ```bash
+   jq '[.[] | select(.build_pass == false)] | .[0:1]' prd.json
+   ```
+2. **`build-progress.txt`**: Summarize to the last 5 entries only:
+   ```bash
+   tail -n 50 build-progress.txt
+   ```
+   Do not read the full history — only the last 50 lines are needed for context.
+3. **Screenshots**: Load only screenshots relevant to the current feature. Do NOT glob all of `ralph/screenshots/`.
+
 ## This Iteration
 
 1. Read `build-spec.md` for the overall architecture and build order.
-2. Read `build-progress.txt` to see what has been done.
-3. Read `prd.json` — pick the FIRST entry where `build_pass` is false.
-4. **Write tests based on the feature's `behavior` and `ui_details`** (TDD):
-   - Write unit tests in `tests/*.test.ts` (Vitest) — test logic, validation, data transforms
-   - Write E2E tests in `tests/e2e/*.spec.ts` (Playwright) — test user flows
-   - **Playwright and Biome are pre-configured.** Do NOT reinstall them.
+2. Read the last 50 lines of `build-progress.txt` to see what has been done recently.
+3. Read `prd.json` — pick the FIRST entry where `build_pass` is false (use jq as above).
+4. **Write tests based on the feature's `behavior` and `ui_details`** (TDD — test pyramid per feature):
+
+   **Unit tests** (`tests/<feature>.test.ts`) — 2-3 per feature:
+   - Test pure logic: validation, data transforms, utility functions
+   - No DB calls, no HTTP calls — use `buildX()` factories from `tests/factories/`
+   - Run: `npx vitest run tests/<feature>.test.ts`
+
+   **Integration tests** (`tests/integration/<feature>.test.ts`) — 1-2 per feature:
+   - Test API routes against the **real database** (use `createX()` factories)
+   - Do NOT mock the database — mocked DB tests give false confidence
+   - Use `docker compose -f docker-compose.dev.yml up -d` to start postgres + redis
+   - Run: `make test-integration`
+
+   **E2E tests** (`tests/e2e/<feature>.spec.ts`) — 1 per feature:
+   - Test the user flow end-to-end through the browser
+   - Assumes auth fixture is set up (see auth section below)
+
+   **Coverage**: All tests combined must achieve ≥70% line/branch/function coverage.
+   Run coverage check with: `npx vitest run --coverage`
+
+   **Playwright and Biome are pre-configured.** Do NOT reinstall them.
    - Run ONLY the new test file to confirm it fails: `npx vitest run tests/<new-file>.test.ts`
    - Do NOT run the full suite for the red step — save that for the green step.
 5. **Implement the feature:**

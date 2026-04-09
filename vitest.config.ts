@@ -7,7 +7,31 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: [],
-    include: ["tests/**/*.test.{ts,tsx}"],
+    include: ["tests/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      thresholds: {
+        lines: 70,
+        functions: 70,
+        branches: 70,
+        statements: 70,
+      },
+    },
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+});
+
+export const integrationConfig = defineConfig({
+  plugins: [react()],
+  test: {
+    environment: "node",
+    setupFiles: [],
+    include: ["tests/integration/*.test.{ts,tsx}"],
+    pool: "forks",
   },
   resolve: {
     alias: {
