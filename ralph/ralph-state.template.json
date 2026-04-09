@@ -1,0 +1,59 @@
+{
+  "phase": "onboard",
+  "iteration": 0,
+  "status": {
+    "current": "idle",
+    "onboard": {
+      "status": "pending",
+      "startedAt": null,
+      "completedAt": null,
+      "iterations": 0,
+      "notes": ""
+    },
+    "inspect": {
+      "status": "pending",
+      "startedAt": null,
+      "completedAt": null,
+      "iterations": 0,
+      "notes": ""
+    },
+    "build": {
+      "status": "pending",
+      "startedAt": null,
+      "completedAt": null,
+      "iterations": 0,
+      "notes": ""
+    },
+    "qa": {
+      "status": "pending",
+      "startedAt": null,
+      "completedAt": null,
+      "iterations": 0,
+      "notes": ""
+    }
+  },
+  "lastCheckpoint": null,
+  "budget": {
+    "maxIterations": 999,
+    "iterationsUsed": 0,
+    "estimatedCostUsd": 0,
+    "budgetCapUsd": null,
+    "tokensIn": 0,
+    "tokensOut": 0
+  },
+  "currentFeature": null,
+  "buildProgress": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "pending": 0
+  },
+  "qaProgress": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "partial": 0,
+    "pending": 0
+  },
+  "errors": []
+}

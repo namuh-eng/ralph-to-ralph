@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "prd-item.schema.json",
+  "title": "PrdItem",
+  "description": "A single feature item in the Product Requirements Document",
+  "type": "object",
+  "required": ["id", "name", "description", "priority", "category"],
+  "additionalProperties": true,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+      "description": "Unique kebab-case identifier (e.g. 'auth-001', 'feature-dashboard')"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Short human-readable feature name"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Detailed description of what this feature does"
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["P0", "P1", "P2", "P3", "P4", "P5", "P6"],
+      "description": "Feature priority: P0 = critical blocker, P6 = nice-to-have"
+    },
+    "category": {
+      "type": "string",
+      "description": "Feature category (e.g. 'auth', 'dashboard', 'api', 'ui', 'infra')"
+    },
+    "build_pass": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set to true by build agent when feature is implemented and tests pass"
+    },
+    "qa_pass": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set to true by QA agent after successful manual/automated verification"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of feature IDs that must be build_pass before this feature can be built",
+      "default": []
+    },
+    "dependent_on": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Alias for dependencies — feature IDs this feature depends on",
+      "default": []
+    },
+    "steps": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Acceptance criteria / test steps for verifying the feature"
+    },
+    "behavior": {
+      "type": "string",
+      "description": "Description of expected behavior (used by QA for comparison)"
+    },
+    "pages": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "App routes or pages this feature affects"
+    }
+  }
+}

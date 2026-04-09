@@ -1,4 +1,4 @@
-.PHONY: check test test-e2e typecheck lint format fix all dev build clean
+.PHONY: check test test-e2e typecheck lint format fix all dev build clean validate
 .PHONY: check-header test-header check-verbose test-verbose
 
 # Full validation: check + test
@@ -71,3 +71,7 @@ db-push:
 # Clean build artifacts
 clean:
 	rm -rf .next dist node_modules/.cache
+
+# Validate state files against JSON schemas
+validate:
+	node scripts/validate-schemas.mjs
