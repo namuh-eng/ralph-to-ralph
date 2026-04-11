@@ -101,6 +101,25 @@ Ask something like:
 
 Their answer changes the deployment target recommendation, how much you explain about ops, and which services are worth setting up properly vs. faking.
 
+**If they pick 1 (Personal/hobby)**, offer the beginner fast track:
+
+> "Since this is personal, want me to set things up as a simple Next.js app? It's one codebase, easy to understand, and you can run it locally with just `npm run dev`. Most people start here.
+>
+> 1. **Yes, keep it simple** — Next.js monolith, perfect for getting started
+> 2. **Let me choose the architecture** — I'll ask more questions about the stack"
+
+If they pick **"Yes, keep it simple"**:
+- Set `stackProfile: "dashboard-app"` in ralph-config.json
+- Set `authMode: "api-key"` (just them, no login needed)
+- Run the setup script to scaffold Next.js immediately:
+  ```bash
+  bash .claude/skills/ralph-to-ralph-onboard/scripts/setup-nextjs-monolith.sh
+  ```
+- Tell them: "All set — Next.js is installed with Tailwind CSS. You've got a running app at localhost:3015."
+- **Skip Question 2 and Question 3 below** — jump straight to Phase 4.5 (Verify Setup) with a reduced checklist (just Node.js, database, and Anthropic key).
+
+If they pick **"Let me choose"**, or picked scale 2 or 3, continue with the full interview below.
+
 ### Question 2: Auth Model
 
 Ask:
@@ -114,6 +133,27 @@ Record their answer as `authMode`:
 - Choice 2 → `authMode: "better-auth"`
 
 This determines how the build agent implements authentication. Save it to `ralph-config.json`.
+
+### Question 2.5: Stack Profile
+
+If the user didn't take the beginner fast track, ask about architecture. Reference `ralph/stack-profiles.md` for the full details on each profile.
+
+> "Based on what I found about [target product], I'd recommend the **[profile]** setup. Here's why: [one sentence].
+>
+> But you can override — which fits best?
+> 1. **API service** — the target is mainly an API (like Stripe, Twilio, Resend)
+> 2. **Dashboard app** — it's a web app with a UI (like analytics, admin panels, CRM)
+> 3. **Platform** — it's infrastructure (like Vercel, Railway, Supabase)
+> 4. **Content app** — content-focused (like a CMS, docs site, blog platform)
+> 5. **Real-time app** — live features (like chat, collaboration, live dashboards)"
+
+Record as `stackProfile` in ralph-config.json. If the profile is `dashboard-app`, run the setup script:
+
+```bash
+bash .claude/skills/ralph-to-ralph-onboard/scripts/setup-nextjs-monolith.sh
+```
+
+For other profiles, the build agent will install the appropriate framework during the first build iteration.
 
 ### Question 3: Existing CLI / Account Setup
 
@@ -370,6 +410,7 @@ If Ever CLI is required but not installed, show the install message before launc
 - **Very broad product** (e.g. "clone Notion"): commit to building all of it, set expectations on iteration count.
 - **Non-SaaS product**: explain this is designed for web SaaS, suggest a pivot.
 - **Research fails** (obscure or login-walled): work with what you can find, flag gaps, ask user to fill them in.
-- **Non-technical user**: skip package names. Say "I'll set up the email service" not "I'll install @aws-sdk/client-sesv2".
+- **Non-technical user**: skip package names. Say "I'll set up the email service" not "I'll install @aws-sdk/client-sesv2". Default to the beginner fast track (Next.js monolith) unless they specifically ask for something else.
+- **Beginner who picked "simple"**: after running `scripts/setup-nextjs-monolith.sh`, verify it worked by checking `next.config.js` exists and `npm run dev` is in package.json. If it fails, diagnose and fix manually.
 - **User already has everything set up**: Phase 4.5 verifies everything passes, Phase 5 becomes a one-liner "You're all set — everything's verified and ready." Skip straight to the summary.
 - **User wants to set up missing services mid-interview**: let them. Wait, then continue where you left off.
