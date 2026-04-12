@@ -8,6 +8,13 @@ TARGET_URL="${1:-}"
 ITERATIONS="${2:-999}"
 MAX_RETRIES=5
 
+# Resolve Python: prefer `uv run python3` if uv is available, fall back to bare python3
+if command -v uv &>/dev/null; then
+  PY="uv run python3"
+else
+  PY="python3"
+fi
+
 # Adaptive timeout per feature category (seconds)
 get_qa_timeout() {
   local category="$1"
@@ -24,7 +31,7 @@ get_qa_timeout() {
 }
 
 [ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./ralph/onboard.sh first."; exit 1; }
-BROWSER_AGENT=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
+BROWSER_AGENT=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
 
 if [ ! -f "prd.json" ]; then
   echo "Error: prd.json not found. Run build-ralph.sh first."
@@ -75,7 +82,7 @@ fi
 
 # ── Helper: get next feature where qa_pass is not true ──
 get_next_feature_with_deps() {
-  python3 -c "
+  $PY -c "
 import json, sys
 from collections import Counter
 
@@ -126,7 +133,7 @@ print(json.dumps(result))
 # ── Helper: get current attempt number for a feature ──
 get_attempt_number() {
   local feature_id="$1"
-  python3 -c "
+  $PY -c "
 import json
 try:
     report = json.load(open('qa-report.json'))
@@ -139,7 +146,7 @@ except: print(1)
 # ── Helper: get full attempt history for a feature ──
 get_feature_history() {
   local feature_id="$1"
-  python3 -c "
+  $PY -c "
 import json
 try:
     report = json.load(open('qa-report.json'))
@@ -164,12 +171,12 @@ except Exception as e:
 }
 
 total_features() {
-  python3 -c "import json; print(len(json.load(open('prd.json'))))" 2>/dev/null || echo "0"
+  $PY -c "import json; print(len(json.load(open('prd.json'))))" 2>/dev/null || echo "0"
 }
 
 # Count features that are done (qa_pass: true or exhausted retries)
 tested_count() {
-  python3 -c "
+  $PY -c "
 import json
 from collections import Counter
 try:
@@ -196,9 +203,9 @@ for ((i=1; i<=$ITERATIONS; i++)); do
     break
   fi
 
-  FEATURE_ID=$(echo "$FEATURE_BUNDLE" | python3 -c "import json,sys; print(json.load(sys.stdin)['main']['id'])")
-  FEATURE_CAT=$(echo "$FEATURE_BUNDLE" | python3 -c "import json,sys; print(json.load(sys.stdin)['main'].get('category',''))")
-  DEP_COUNT=$(echo "$FEATURE_BUNDLE" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['dependencies']))")
+  FEATURE_ID=$(echo "$FEATURE_BUNDLE" | $PY -c "import json,sys; print(json.load(sys.stdin)['main']['id'])")
+  FEATURE_CAT=$(echo "$FEATURE_BUNDLE" | $PY -c "import json,sys; print(json.load(sys.stdin)['main'].get('category',''))")
+  DEP_COUNT=$(echo "$FEATURE_BUNDLE" | $PY -c "import json,sys; print(len(json.load(sys.stdin)['dependencies']))")
   ATTEMPT=$(get_attempt_number "$FEATURE_ID")
   HISTORY=$(get_feature_history "$FEATURE_ID")
 
@@ -207,7 +214,7 @@ for ((i=1; i<=$ITERATIONS; i++)); do
 
   echo "$FEATURE_BUNDLE" > .current-feature.json
 
-  QA_HINTS=$(python3 -c "
+  QA_HINTS=$($PY -c "
 import json
 try:
     hints = json.load(open('qa-hints.json'))
@@ -228,10 +235,10 @@ except:
 "$(cat ralph/qa-prompt.md)
 
 == FEATURE TO TEST ==
-$(python3 -c "import json; d=json.load(open('.current-feature.json')); print(json.dumps(d['main'], indent=2))")
+$($PY -c "import json; d=json.load(open('.current-feature.json')); print(json.dumps(d['main'], indent=2))")
 
 == RELATED FEATURES (dependencies for context) ==
-$(python3 -c "
+$($PY -c "
 import json
 d=json.load(open('.current-feature.json'))
 deps = d.get('dependencies', [])
@@ -278,7 +285,7 @@ Then:
 
   # No promise = crash or context overflow. Record as partial and move on.
   echo "WARNING: No promise from Codex for $FEATURE_ID (attempt $ATTEMPT). Recording as partial..."
-  python3 -c "
+  $PY -c "
 import json
 report = json.load(open('qa-report.json'))
 report.append({
