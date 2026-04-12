@@ -9,6 +9,7 @@ This is a **generic product cloning system** — the target could be any SaaS st
 - `ever-cli-reference.md`: Ever CLI command reference — use these to control the browser.
 - `prd.json`: Feature list you are building up (append new entries each iteration).
 - `inspect-progress.txt`: What you've already inspected (read first, update at end).
+- `target-docs/`: **Pre-scraped target product documentation.** A deterministic Python scraper (`scripts/scrape-docs.py`) populated this directory before iteration 1. Read `target-docs/INDEX.md` first to see what's available. **You do NOT need to scrape docs yourself** — read from disk.
 
 ## This Iteration
 
@@ -17,41 +18,32 @@ This is a **generic product cloning system** — the target could be any SaaS st
 3. Run `ever snapshot` to see the current page state.
 4. Follow the inspection strategy for your current iteration:
 
-### Phase A: Scrape ALL docs first (if nothing inspected yet)
+### Phase A: Read pre-scraped docs (if nothing inspected yet)
 
-**This is the most important phase.** Incomplete docs = incomplete clone. The current approach only captures a fraction of available docs. Follow `inspect-spec.md` Phase A strictly — it has the full scraping strategy.
+Docs have already been downloaded into `target-docs/` by `scripts/scrape-docs.py` before this loop started. **Do NOT run `curl`, `ever extract`, or any scraper on the target's docs site.** Read from disk instead.
 
-**Save all documentation to `target-docs/`** (NOT `clone-product-docs/`).
+1. **Read `target-docs/INDEX.md`** — this lists every page that was scraped, with a one-line description and the file path. If `target-docs/full-docs.md` exists, that single file is the entire docs site (from `llms-full.txt`).
+2. **Read `target-docs/coverage.json`** — confirms which discovery method succeeded and how many pages are available.
+3. **If `target-docs/openapi.json` or `target-docs/openapi.yaml` exists**, read it. This is the authoritative API contract — generate API-related PRD entries directly from it.
+4. **Skim the docs for the developer experience (DX)** — this is just as important as the UI:
+   - **SDKs / client libraries**: Does the target offer an npm/pip/gem package? What languages? What's the full API surface? (e.g., `client.emails.send({react: <Component/>})`)
+   - **React/template rendering**: Does the API accept React components, templates, or markup that gets rendered server-side?
+   - **CLI tools**: Does the target have a CLI?
+   - **Code examples**: What does the "getting started" flow look like for a developer?
+   - **Webhooks / event model**: How do developers consume events?
+   - Include SDK/DX features as PRD entries with category `"sdk"` or `"developer-experience"`.
+5. **Save a DX summary to `docs-extract.md`** — your synthesized notes on what the product does, the API shape, and the SDK surface. This is what the build agent will read; the raw docs in `target-docs/` are reference material.
 
-**Scraping priority (fastest → slowest):**
-1. **llms.txt** — Fetch `{targetUrl}/llms.txt` or `{targetUrl}/docs/llms.txt`. Parse it as a list of doc URLs. Fetch EVERY linked URL using Jina Reader (`curl -s "https://r.jina.ai/<url>"`). If `llms-full.txt` exists, save it as `target-docs/full-docs.md`.
-2. **sitemap.xml** — Fetch `{targetUrl}/sitemap.xml`. Filter for `/docs/` URLs. Fetch each via Jina Reader.
-3. **Manual crawl** — Only if methods 1-2 both fail.
-
-**File naming — use descriptive names matching the doc path:**
-- `{targetUrl}/docs/api-reference/emails/send` → `target-docs/api-reference/emails/send.md`
-- `{targetUrl}/docs/guides/webhooks` → `target-docs/guides/webhooks.md`
-- Each file MUST include a `<!-- Source: {original-url} -->` comment at the top for reference
-
-**Create `target-docs/INDEX.md`** listing every scraped page with a one-line description.
-
-**Capture the Developer Experience (DX)** — this is just as important as the UI:
-  - **SDKs / client libraries**: Does the target offer an npm/pip/gem package? What languages? What's the full API surface? (e.g., `client.emails.send({react: <Component/>})`)
-  - **React/template rendering**: Does the API accept React components, templates, or markup that gets rendered server-side?
-  - **CLI tools**: Does the target have a CLI?
-  - **Code examples**: What does the "getting started" flow look like for a developer?
-  - **Webhooks / event model**: How do developers consume events?
-- Include SDK/DX features as PRD entries with category `"sdk"` or `"developer-experience"`.
-- Save DX summary to `docs-extract.md`
+**If `target-docs/INDEX.md` is missing or empty, STOP.** That means the scraper failed or hasn't run. Output the failure to inspect-progress.txt and exit — do NOT try to scrape docs yourself, the scraper exists for a reason.
 
 ### Phase A.1: Onboarding Flow Discovery (during docs phase)
 
-The logged-in user has already completed onboarding, so the onboarding UI won't be visible. Discover it from docs instead:
+The logged-in user has already completed onboarding, so the onboarding UI won't be visible. Discover it from `target-docs/` instead:
 
-1. **Search scraped docs** for quickstart/getting-started/setup/welcome content
-2. **Use the docs search bar or AI assistant** (if the site has one) — ask about the onboarding process, first-run experience, and new user setup steps. Use Ever CLI to interact with it (`ever click` the search/assistant → `ever type` your question → `ever extract` the response)
-3. **Save findings** to `target-docs/onboarding-flow.md` — step-by-step sequence, required vs. skippable steps, empty states, what "done" looks like
-4. **Add PRD entries** with category `"onboarding"`, priority P2-P3, for each onboarding step + empty states
+1. **Grep `target-docs/`** for quickstart/getting-started/setup/welcome content. Files like `target-docs/quickstart.md`, `target-docs/getting-started.md`, or anything under `target-docs/guides/` are the first place to look.
+2. **Only if the docs are silent on onboarding**, use the docs site's search bar or AI assistant via Ever CLI as a fallback (`ever click` the assistant → `ever type` your question → `ever extract`). Most docs sites won't need this.
+3. **Save findings** to `target-docs/onboarding-flow.md` — step-by-step sequence, required vs. skippable steps, empty states, what "done" looks like.
+4. **Add PRD entries** with category `"onboarding"`, priority P2-P3, for each onboarding step + empty states.
 
 ### Phase A.2: Auth Flow Discovery (during docs/early iterations)
 

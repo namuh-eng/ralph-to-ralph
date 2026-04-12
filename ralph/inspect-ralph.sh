@@ -20,7 +20,47 @@ touch inspect-progress.txt
 if [ ! -f "prd.json" ]; then
   echo '[]' > prd.json
 fi
-mkdir -p ralph/screenshots
+mkdir -p ralph/screenshots target-docs
+
+# Phase 1.0: Deterministic doc scrape (runs once before iteration 1)
+# Populates target-docs/ so the inspect prompts can read docs from disk
+# instead of trying to scrape the web themselves. Hard-fails on the coverage
+# gate so the loop never starts with a half-empty target-docs/.
+_coverage_passed=0
+if [ -f target-docs/coverage.json ]; then
+  if python3 -c "import json,sys; sys.exit(0 if json.load(open('target-docs/coverage.json')).get('passed') else 1)" 2>/dev/null; then
+    _coverage_passed=1
+  fi
+fi
+
+if [ "$_coverage_passed" -eq 0 ]; then
+  echo "=== Scraping target docs ==="
+  if [ ! -d .venv-scrape ]; then
+    echo "First-time setup: creating .venv-scrape and installing scrape-docs deps..."
+    if ! command -v python3 >/dev/null 2>&1; then
+      echo "ERROR: python3 is required for the doc scraper. Install Python 3.10+ and re-run." >&2
+      exit 1
+    fi
+    python3 -m venv .venv-scrape
+    .venv-scrape/bin/pip install --quiet --upgrade pip
+    .venv-scrape/bin/pip install --quiet -r scripts/scrape-docs-requirements.txt
+  fi
+  if ! .venv-scrape/bin/python scripts/scrape-docs.py "$TARGET_URL"; then
+    echo "" >&2
+    echo "ERROR: doc scraper failed coverage gate. Inspect cannot proceed." >&2
+    echo "  - check target-docs/coverage.json for the failure reason" >&2
+    echo "  - try a more specific target URL (e.g. https://example.com/docs)" >&2
+    echo "  - or re-run after debugging:" >&2
+    echo "      .venv-scrape/bin/python scripts/scrape-docs.py \"$TARGET_URL\" --force" >&2
+    exit 1
+  fi
+  echo "=== Doc scrape complete ==="
+  echo ""
+else
+  echo "target-docs/ already populated (coverage.json passed). Skipping scrape."
+  echo "Delete target-docs/coverage.json or pass --force to re-scrape."
+  echo ""
+fi
 
 # Start browser agent session
 if [ "$BROWSER_AGENT" = "ever" ]; then

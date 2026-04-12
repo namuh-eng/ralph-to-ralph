@@ -29,6 +29,16 @@ Run `bash scripts/preflight.sh` before starting the loop. It creates:
 - **ECR** — Docker image repository
 - **SES** — email identity verification
 
+## Doc Scraper (Phase 1 only — auto-installed)
+The inspect loop calls `scripts/scrape-docs.py` once before iteration 1 to populate `target-docs/` with the target product's documentation. The first time you run `./ralph/inspect-ralph.sh`, it will:
+1. Create `.venv-scrape/` (Python venv, gitignored, **NOT** part of the generated clone)
+2. `pip install -r scripts/scrape-docs-requirements.txt` (Scrapling + trafilatura)
+3. Run the scraper and write `target-docs/` + `target-docs/coverage.json`
+
+If the coverage gate fails the inspect loop hard-stops — fix the target URL or re-run with `--force`. The venv only exists in the cloning workspace; the generated clone never depends on Python.
+
+**Requirement:** `python3` (3.10+) on PATH. Default on macOS/Linux.
+
 ## Cloudflare DNS (optional)
 If you want auto-configure for domain verification, add to `.env`:
 - `CLOUDFLARE_API_TOKEN` — API token with Edit zone DNS permission

@@ -14,6 +14,11 @@ target-docs/
 .current-feature.json
 tsconfig.tsbuildinfo
 
+# Doc scraper venv (Phase 1 only, not part of the generated clone)
+.venv-scrape/
+__pycache__/
+*.pyc
+
 # Planning docs — internal, not source files
 ONBOARDING-PLAN.md
 
