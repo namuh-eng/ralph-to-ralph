@@ -225,7 +225,6 @@ if [ -f ".onboard-answers.tmp" ] && [ ! -f "ralph-config.json" ]; then
   echo "  Target:  $TARGET_URL"
   echo "  Clone:   $CLONE_NAME"
   echo "  Stack:   $CLOUD_PROVIDER${CUSTOM_STACK_DESC:+ (custom: $CUSTOM_STACK_DESC)}"
-  echo "  Profile: $STACK_PROFILE"
   echo "  Auth:    $AUTH_MODE"
   echo ""
   read -rp "Resume with these? [Y/n]: " _RESUME_ANSWERS
@@ -529,38 +528,6 @@ case "${AUTH_CHOICE:-1}" in
 esac
 
 echo ""
-echo "What type of product are you cloning? (Claude will confirm this during research)"
-echo ""
-echo "  1) Dashboard / SaaS app  (default — web UI, CRUD, team workspaces)"
-echo "     Examples: PostHog, Linear, Notion, Loom"
-echo ""
-echo "  2) API service  (developer API product with SDK)"
-echo "     Examples: Resend, Twilio, Stripe, SendGrid"
-echo ""
-echo "  3) Platform / infra  (manages deployments or compute for other apps)"
-echo "     Examples: Vercel, Railway, Fly.io, Render"
-echo ""
-echo "  4) Content app  (publishing, CMS, docs)"
-echo "     Examples: Ghost, Substack, Contentful, Hashnode"
-echo ""
-echo "  5) Real-time app  (collaborative or live-update features)"
-echo "     Examples: Figma, Liveblocks, Ably, Pusher"
-echo ""
-read -rp "Choose [1]: " STACK_PROFILE_CHOICE
-STACK_PROFILE_CHOICE="${STACK_PROFILE_CHOICE//[[:space:]]/}"
-case "${STACK_PROFILE_CHOICE:-1}" in
-  1|dashboard) STACK_PROFILE="dashboard-app" ;;
-  2|api)       STACK_PROFILE="api-service" ;;
-  3|platform)  STACK_PROFILE="platform" ;;
-  4|content)   STACK_PROFILE="content-app" ;;
-  5|realtime)  STACK_PROFILE="realtime-app" ;;
-  *)
-    echo "Invalid choice. Using dashboard-app."
-    STACK_PROFILE="dashboard-app"
-    ;;
-esac
-
-echo ""
 echo "Which browser agent for inspecting and QA-testing the product?"
 echo ""
 echo "  1) Ever CLI    (recommended — visual AI browser agent)"
@@ -599,9 +566,6 @@ esac
 
 fi  # end _SKIP_QA=false block
 
-# Default STACK_PROFILE if not set (e.g. resumed from old .onboard-answers.tmp without this field)
-STACK_PROFILE="${STACK_PROFILE:-dashboard-app}"
-
 # ── Re-verify cloud CLI auth if resuming (sessions can expire between runs) ──
 if [ "$_SKIP_QA" = true ] && [ "$CLOUD_PROVIDER" != "custom" ]; then
   _auth_ok=false
@@ -633,7 +597,6 @@ fi
   printf 'AUTH_MODE=%q\n'        "$AUTH_MODE"
   printf 'BROWSER_AGENT=%q\n'    "$BROWSER_AGENT"
   printf 'BROWSER_AGENT_DESC=%q\n' "$BROWSER_AGENT_DESC"
-  printf 'STACK_PROFILE=%q\n'    "$STACK_PROFILE"
 } > .onboard-answers.tmp
 
 echo ""
@@ -641,7 +604,6 @@ echo "--- Summary ---"
 echo "Target:    $TARGET_URL"
 echo "Clone:     $CLONE_NAME"
 echo "Cloud:     $CLOUD_PROVIDER"
-echo "Profile:   $STACK_PROFILE"
 echo "Framework: Next.js 16 (default)"
 echo "Database:  Postgres (default)"
 if [ "$SKIP_DEPLOY" = "true" ]; then
@@ -689,7 +651,8 @@ The user has already provided their answers:
 - Skip deployment: $SKIP_DEPLOY (if true, do NOT set up deployment infrastructure — only provision database and services needed for local development. If false and cloudProvider is 'vercel', deploy via 'vercel --prod' — no Docker needed. If false and cloudProvider is 'aws'/'gcp'/'azure', build a Docker image and push to the cloud container registry.)
 - Browser agent: $BROWSER_AGENT (ever = Ever CLI for visual inspection; playwright = npx playwright scripted; stagehand = @browserbasehq/stagehand AI agent; custom = $BROWSER_AGENT_DESC). Set this as 'browserAgent' in ralph-config.json.
 - Auth mode: $AUTH_MODE (api-key = personal/solo use, protect all routes with DASHBOARD_KEY bearer token, no login/signup needed; better-auth = multi-user, implement full login/signup with Better Auth + Drizzle adapter). Set this as 'authMode' in ralph-config.json.
-- Stack profile (user hint): $STACK_PROFILE — the user's initial guess at the architecture pattern. Confirm or override this in Step 3b based on your research findings. Set this as 'stackProfile' in ralph-config.json.
+
+Determine 'stackProfile' from your research in Step 3d (see ralph/stack-profiles.md for the 5 valid values). Default to 'dashboard-app' if unsure.
 
 SKIP Steps 1 and 2 (already answered above). Start directly from Step 3 (Technical Architecture Scan).
 Research the target product, generate ralph-config.json, check dependencies, rewrite config files, and install packages.

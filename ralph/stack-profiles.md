@@ -1,8 +1,10 @@
 # Stack Profiles
 
-Stack profiles describe the architecture pattern for the cloned product. Claude selects the best profile during onboarding based on research findings, then records it in `ralph-config.json` as `stackProfile`.
+Stack profiles describe the **architecture pattern** for the cloned product. Claude selects the best profile during onboarding based on research findings, then records it in `ralph-config.json` as `stackProfile`.
 
-The build agent reads `stackProfile` to understand what to build — which services to wire up, how to structure the API layer, and which infrastructure patterns to follow.
+Profiles are **language-agnostic**: they describe process topology, data flow, and service boundaries. The concrete framework is determined by the `language` field + the matching template under `.claude/skills/ralph-to-ralph-onboard/templates/`. The same profile (e.g. `api-service`) produces a different scaffold for `typescript` vs `go` vs `python`, but the architecture shape is the same.
+
+The build agent reads `stackProfile` to understand what to build — which services to wire up, how to separate processes, and which infrastructure patterns to follow.
 
 ---
 
@@ -21,22 +23,21 @@ The build agent reads `stackProfile` to understand what to build — which servi
 
 **Architecture:**
 ```
-API Server (Express/Fastify on Node)   ← core product
-  └─ Postgres (data model, accounts)
-  └─ Redis (rate limiting, job queues)
-  └─ Job queue (BullMQ / SQS) for async delivery
-Next.js frontend (dashboard + docs)
-  └─ Calls the API server (not directly to DB)
-TypeScript SDK package (packages/sdk/)
+API server                                    ← core product
+  └─ Relational database (accounts, data model)
+  └─ Redis / in-memory cache (rate limiting, queue state)
+  └─ Job queue (for async delivery, webhook dispatch)
+Frontend (dashboard + docs)
+  └─ Calls the API server — never touches the DB directly
+SDK package (packages/sdk/ or language equivalent)
 ```
 
 **What this configures:**
-- Separate API server entry point (`src/server/`)
-- Next.js frontend that proxies to the API layer
-- Redis for rate limiting and queue state
+- Separate API server process from the frontend
+- Redis (or equivalent) for rate limiting and queue state
 - Job queue for async operations (email delivery, webhook dispatch)
-- SDK package scaffolded under `packages/sdk/`
-- API key auth (issued per user account, not Better Auth sessions)
+- SDK package scaffolded for at least the primary language
+- API-key auth issued per user account (not session-based)
 
 ---
 
@@ -53,19 +54,18 @@ TypeScript SDK package (packages/sdk/)
 
 **Architecture:**
 ```
-Next.js App Router (full-stack)
-  └─ src/app/api/ — API routes (server actions or REST)
-  └─ src/components/ — rich UI components
-  └─ Postgres (main data store)
-  └─ Auth (Better Auth with Drizzle adapter)
+Full-stack web app (single process)
+  └─ Server-rendered UI + API routes colocated
+  └─ Relational database (main data store)
+  └─ Auth library (sessions, orgs, multi-user)
 ```
 
 **What this configures:**
-- Next.js full-stack with API routes inside the app
-- Clear API layer separation (`src/app/api/` handles all data ops)
-- Components organized by feature (not by type)
-- Better Auth for multi-user auth
-- Drizzle schema matching the target product's data model
+- Full-stack web framework with colocated API and UI
+- Clear API layer for data operations
+- Components organized by feature
+- Multi-user auth (if `authMode: "better-auth"`)
+- Schema matching the target product's data model
 
 ---
 
@@ -82,20 +82,20 @@ Next.js App Router (full-stack)
 
 **Architecture:**
 ```
-Control plane (Next.js API + frontend)
+Control plane (API + frontend, single process)
   └─ Manages projects, deployments, domains
-  └─ Postgres (project/deployment state)
-Worker plane (background service)
+  └─ Relational database (project/deployment state)
+Worker plane (separate background process)
   └─ Executes deploys, health checks, scaling
-  └─ Redis / SQS for job coordination
-CLI package (packages/cli/)
+  └─ Redis Pub/Sub or SQS for job coordination
+CLI package (packages/cli/ or language equivalent)
 ```
 
 **What this configures:**
-- Separation between control plane (Next.js) and worker/agent service
+- Separation between control plane and worker process
 - Background worker for long-running operations
 - Webhook ingestion and dispatch system
-- CLI package scaffolded under `packages/cli/`
+- CLI package scaffolded for the primary language
 - Event-sourcing pattern for deployment state
 
 ---
@@ -113,19 +113,19 @@ CLI package (packages/cli/)
 
 **Architecture:**
 ```
-Next.js App Router
+Full-stack web app
   └─ Editor UI (rich text / markdown)
-  └─ Reader-facing site (SSG/ISR for SEO)
-  └─ Postgres (content model + authors)
-  └─ CDN-friendly API (static generation)
-  └─ Image optimization + storage
+  └─ Reader-facing routes (ISR/SSG or equivalent caching)
+  └─ Relational database (content model + authors)
+  └─ CDN-friendly caching for public pages
+  └─ Image optimization + object storage
 ```
 
 **What this configures:**
-- Next.js with ISR/SSG for public content pages
+- Static/incremental rendering for public content pages
 - Separate editor and reader routes
-- Content schema in Drizzle (posts, authors, tags, revisions)
-- Image storage (S3/Cloudflare R2/Neon Blobs)
+- Content schema (posts, authors, tags, revisions)
+- Object storage (S3 / R2 / equivalent)
 - CDN headers and caching strategy
 - RSS/Atom feed generation
 
@@ -144,20 +144,20 @@ Next.js App Router
 
 **Architecture:**
 ```
-WebSocket server (separate from Next.js HTTP server)
+WebSocket server (separate from HTTP server)
   └─ Manages rooms, presence, event broadcast
-  └─ Redis Pub/Sub (scale across WS server instances)
-Next.js frontend
+  └─ Redis Pub/Sub (scale across WS instances)
+Frontend
   └─ Connects to WS server via client library
   └─ Optimistic UI updates with server reconciliation
-Postgres (persistent state, snapshots)
+Relational database (persistent state, snapshots)
 Event bus for async side effects
 ```
 
 **What this configures:**
-- Dedicated WebSocket server (`src/ws-server/`)
+- Dedicated WebSocket server process
 - Redis for Pub/Sub across WS instances
-- Client-side WebSocket hook/provider
+- Client-side WebSocket connection layer
 - Presence and room management
 - Conflict-resolution strategy (last-write-wins or CRDT)
 - Snapshot persistence pattern
@@ -184,14 +184,15 @@ When unsure, default to `dashboard-app` — it's the most flexible and covers th
 
 ```json
 {
+  "language": "typescript",
   "stackProfile": "dashboard-app"
 }
 ```
 
 Valid values: `"api-service"`, `"dashboard-app"`, `"platform"`, `"content-app"`, `"realtime-app"`
 
-The build agent reads this field to determine:
-- Which services to initialize
-- How to structure `src/`
-- Which dependencies to install
+The build agent reads this field (together with `language`) to determine:
+- Which template to apply via `setup-stack.sh`
+- How many processes to run (single vs control+worker vs HTTP+WS)
+- Which dependencies to install (Redis, job queue, SDK, CLI, etc.)
 - Which infrastructure patterns to follow in `scripts/preflight.sh`

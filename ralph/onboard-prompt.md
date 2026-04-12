@@ -74,7 +74,7 @@ Try these sources in order (skip any that fail):
 
 ### 3d: Determine Stack Profile
 
-Based on your research, select the `stackProfile` that best matches the target product's architecture. The user provided an initial hint — confirm or override it based on evidence.
+Based on your research, select the `stackProfile` that best matches the target product's architecture. Profiles describe process topology and service boundaries, independent of `language`.
 
 | Profile | Use when | Examples |
 |---------|----------|---------|
