@@ -31,11 +31,26 @@ You are an AI product builder. Your job is to build a working clone of a real pr
    - `make check` — typecheck + lint/format (must pass)
    - `make test` — ALL unit tests including previous features (catches regressions)
    - If any fail, fix and re-run. Do NOT proceed until all green.
-   - Do NOT run `make test-e2e` during build — QA handles E2E.
-7. **Smoke test** (first iteration only): Create `tests/e2e/smoke.spec.ts` — tests core navigation (sidebar links, pages load). Keep under 10 tests. Update as you add major pages.
-   - **E2E auth**: If the app has auth, set up a Playwright auth fixture so E2E tests don't get blocked by login redirects. Create `tests/e2e/auth.setup.ts` that creates a session (via a test-only API route `POST /api/test/create-session` that's enabled only in `NODE_ENV=test`), saves state to `tests/e2e/.auth/user.json`, and configure `playwright.config.ts` to use it as a setup project with `storageState`. Do NOT skip this — every E2E test behind auth will fail without it.
-8. Update `prd.json`: set `build_pass: true` ONLY after all tests pass. Do NOT touch `qa_pass` — that is set by the QA agent.
-9. **Log QA hints** — append to `qa-hints.json` what you tested and what needs deeper QA:
+7. **Browser smoke test** (MANDATORY for UI features):
+   - Start the dev server if not running (`npm run dev`)
+   - Use Ever CLI to navigate to the feature's page (or Playwright if Ever is unavailable)
+   - Verify the PRIMARY user flow works end-to-end:
+     - Every button opens its intended modal/dropdown/action — no dead `onClick={() => {}}`
+     - Every list row is clickable and navigates to the correct detail page
+     - Every form submits and shows success/error feedback
+     - Every "Add" / "Create" button actually creates the resource via API
+     - Every empty state has a working CTA that triggers the correct action
+   - If ANY interaction is dead (missing handler, `href="#"`, placeholder), fix it before proceeding
+   - Save a screenshot to `ralph/screenshots/build/`
+   - Skip this step ONLY for non-UI features (infrastructure, schema, SDK internals)
+8. **E2E Foundation** (first iteration only, or when auth features are built):
+   a. Create `tests/e2e/auth.setup.ts` — Playwright auth fixture that creates a session via a test-only API route (`POST /api/test/create-session`, enabled only in `NODE_ENV=test`). Save state to `tests/e2e/.auth/user.json`.
+   b. Update `playwright.config.ts` with a `setup` project + `storageState` so all E2E tests inherit the authenticated session.
+   c. Create `tests/e2e/smoke.spec.ts` — basic navigation tests (sidebar links, pages load). Keep under 10 tests. Update as you add major pages.
+   d. Add `tests/e2e/.auth/` to `.gitignore`.
+   e. This MUST be done BEFORE any other E2E tests. Do NOT skip this — every E2E test behind auth will fail without it.
+9. Update `prd.json`: set `build_pass: true` ONLY after all tests pass AND browser smoke test passes. Do NOT touch `qa_pass` — that is set by the QA agent.
+10. **Log QA hints** — append to `qa-hints.json` what you tested and what needs deeper QA:
    ```json
    {
      "feature_id": "feature-001",
@@ -48,8 +63,8 @@ You are an AI product builder. Your job is to build a working clone of a real pr
    }
    ```
    This tells the QA agent where to focus. Be honest about what you couldn't fully verify.
-10. Append to `build-progress.txt`: what you built, test results, decisions, files changed.
-11. **Commit and push:**
+11. Append to `build-progress.txt`: what you built, test results, decisions, files changed.
+12. **Commit and push:**
     - `git add -A`
     - Detailed commit message: which PRD feature, what was built, test results, files changed
     - `git push`
@@ -72,6 +87,22 @@ Cloud Services:
   - EventBridge/SNS → webhook delivery
   - ECR → Docker image registry
 ```
+
+### API Completeness Rule
+When building a feature that DISPLAYS data, you MUST also implement the write APIs for every interaction:
+- **"Add" / "Create" button exists?** → Implement the `POST` endpoint
+- **Editable fields or drag-and-drop?** → Implement the `PATCH` endpoint
+- **Delete / remove action?** → Implement the `DELETE` endpoint
+- **List / table view?** → Implement the `GET` endpoint with filtering and pagination
+A read-only page with "Add" buttons that don't work is NOT `build_pass`.
+
+### Infrastructure Features
+For features in the `infrastructure` category:
+- Actually PROVISION the cloud resource (create the S3 bucket, Redis cluster, SES identity, etc.)
+- Verify the resource exists with a real API call (`aws s3 ls`, `redis-cli ping`, etc.)
+- Write the connection details to `.env`
+- Unit tests against mocks are NECESSARY but NOT SUFFICIENT — the real resource must respond to a health check
+- The feature is not `build_pass` until the provisioned resource is reachable
 
 ### Implementation Rules
 - **REST API**: Mirror the target product's API surface. Read `target-docs/` for specs.

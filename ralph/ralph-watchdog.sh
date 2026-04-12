@@ -17,12 +17,29 @@ LOG_FILE="ralph-watchdog-$(date +%Y%m%d-%H%M%S).log"
 
 log() { echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
 
+# Global time budget (hours) — prevents unbounded runs
+MAX_WALL_CLOCK_HOURS="${MAX_WALL_CLOCK_HOURS:-12}"
+START_EPOCH=$(date +%s)
+
 # Resolve Python: prefer `uv run python3` if uv is available, fall back to bare python3
 if command -v uv &>/dev/null; then
   PY="uv run python3"
 else
   PY="python3"
 fi
+
+check_time_budget() {
+  local now=$(date +%s)
+  local max_seconds=$(( MAX_WALL_CLOCK_HOURS * 3600 ))
+  local elapsed=$(( now - START_EPOCH ))
+  if [ "$elapsed" -ge "$max_seconds" ]; then
+    local elapsed_hours=$(( elapsed / 3600 ))
+    log "TIME BUDGET EXHAUSTED (${elapsed_hours}h >= ${MAX_WALL_CLOCK_HOURS}h limit)."
+    log "Build: $(count_passes)/$(total_tasks) | QA: $($PY -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo '?')/$(total_tasks)"
+    log "Increase MAX_WALL_CLOCK_HOURS env var to allow more time."
+    exit 2  # time budget exhausted, work incomplete
+  fi
+}
 
 # Lock file
 if [ -f "$LOCKFILE" ]; then
@@ -98,6 +115,7 @@ while ! inspect_done; do
     exit 1
   fi
 
+  check_time_budget
   log "Phase 1: Running inspect loop... (attempt $((inspect_restarts + 1)))"
   ./ralph/inspect-ralph.sh "$TARGET_URL" || true
   cron_backup
@@ -129,6 +147,7 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
       break
     fi
 
+    check_time_budget
     log "Phase 2: Building... $(count_passes)/$(total_tasks) passes (attempt $((build_restarts + 1)))"
     ./ralph/build-ralph.sh || true
     cron_backup
@@ -151,6 +170,7 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
   while [ "$(qa_complete)" != "true" ] && [ "$qa_restarts" -lt "$MAX_QA_RESTARTS" ]; do
     qa_restarts=$((qa_restarts + 1))
     QA_SO_FAR=$(python3 -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo "0")
+    check_time_budget
     log "Phase 3: Running QA... $QA_SO_FAR/$(total_tasks) passed (attempt $qa_restarts/$MAX_QA_RESTARTS)"
     ./ralph/qa-ralph.sh "$TARGET_URL" || true
     cron_backup

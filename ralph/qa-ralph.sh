@@ -8,6 +8,21 @@ TARGET_URL="${1:-}"
 ITERATIONS="${2:-999}"
 MAX_RETRIES=5
 
+# Adaptive timeout per feature category (seconds)
+get_qa_timeout() {
+  local category="$1"
+  case "$category" in
+    infrastructure) echo 1200 ;;   # 20 min — provision + verify
+    auth)           echo 1800 ;;   # 30 min — full auth flow testing
+    crud)           echo 1800 ;;   # 30 min — UI + API + data verification
+    layout|design)  echo 900 ;;    # 15 min — visual verification
+    settings)       echo 900 ;;    # 15 min — form toggles
+    onboarding)     echo 1200 ;;   # 20 min — multi-step flows
+    sdk)            echo 1200 ;;   # 20 min — SDK testing
+    *)              echo 1500 ;;   # 25 min — default
+  esac
+}
+
 [ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./ralph/onboard.sh first."; exit 1; }
 BROWSER_AGENT=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
 
@@ -79,11 +94,20 @@ exhausted = {fid for fid, count in attempt_counts.items() if count >= $MAX_RETRI
 done = qa_passed | exhausted
 by_id = {item['id']: item for item in prd}
 
-target = None
-for item in prd:
-    if item['id'] not in done:
-        target = item
-        break
+# Priority-based ordering: core first, then lower priority number, then fewer deps
+def priority_key(item):
+    core = 0 if item.get('core', False) else 1
+    pri = item.get('priority', 'P99')
+    pri_num = int(pri[1:]) if pri.startswith('P') and pri[1:].isdigit() else 99
+    dep_count = len(item.get('dependent_on', []))
+    return (core, pri_num, dep_count)
+
+candidates = [item for item in prd if item['id'] not in done]
+candidates.sort(key=priority_key)
+# Skip features whose dependencies haven't been QA'd yet (fallback to best candidate to avoid deadlock)
+candidate_ids = {item['id'] for item in candidates}
+ready = [item for item in candidates if not (set(item.get('dependent_on', [])) & candidate_ids)]
+target = ready[0] if ready else (candidates[0] if candidates else None)
 
 if not target:
     print('ALL_DONE')
@@ -178,7 +202,8 @@ for ((i=1; i<=$ITERATIONS; i++)); do
   ATTEMPT=$(get_attempt_number "$FEATURE_ID")
   HISTORY=$(get_feature_history "$FEATURE_ID")
 
-  echo "Testing: $FEATURE_ID ($FEATURE_CAT) — attempt $ATTEMPT/$MAX_RETRIES, $DEP_COUNT dependencies"
+  QA_TIMEOUT=$(get_qa_timeout "$FEATURE_CAT")
+  echo "Testing: $FEATURE_ID ($FEATURE_CAT) — attempt $ATTEMPT/$MAX_RETRIES, $DEP_COUNT dependencies, timeout ${QA_TIMEOUT}s"
 
   echo "$FEATURE_BUNDLE" > .current-feature.json
 
@@ -199,7 +224,7 @@ except:
     print('No qa-hints.json found.')
 " 2>/dev/null)
 
-  result=$(timeout 1200 codex exec --dangerously-bypass-approvals-and-sandbox \
+  result=$(timeout "$QA_TIMEOUT" codex exec --dangerously-bypass-approvals-and-sandbox \
 "$(cat ralph/qa-prompt.md)
 
 == FEATURE TO TEST ==
