@@ -5,47 +5,48 @@ A three-phase autonomous system that clones any SaaS product from just a URL.
 Phase 1: Inspect (Claude + Ever CLI) → Phase 2: Build (Claude) → Phase 3: QA (Codex + Ever CLI)
 
 ## Tech Stack
-- **Framework**: Installed during onboarding (see `stackProfile` in `ralph-config.json`)
-- **Language**: TypeScript strict mode, no `any` types
-- **Styling**: Installed during onboarding based on stackProfile
-- **UI Components**: Installed during onboarding based on stackProfile
-- **Database**: Installed during onboarding (default: Drizzle ORM + Postgres)
-- **Unit Tests**: Vitest (pre-installed)
-- **E2E Tests**: Playwright (pre-installed)
-- **Linting**: Biome (pre-installed)
+- **Language & Framework**: Configured during onboarding (see `language` and `stackProfile` in `ralph-config.json`)
+- **Styling & UI**: Installed during onboarding based on stackProfile
+- **Database**: Installed during onboarding (default: Postgres)
+- **Testing**: Installed during onboarding (template provides unit test + E2E config)
+- **Linting**: Installed during onboarding (template provides linter config)
 
 ## Commands
-- `make check` — typecheck + lint/format (Biome)
-- `make test` — run unit tests (Vitest)
-- `make test-e2e` — run E2E tests (Playwright, requires dev server)
+All commands go through `make`. The Makefile is a contract — onboarding wires up real recipes based on your stack.
+- `make check` — typecheck + lint/format
+- `make test` — run unit tests
+- `make test-e2e` — run E2E tests (requires dev server)
 - `make all` — check + test
-- `npm run dev` — start dev server on port 3015
-- `npm run build` — production build
-- `npm run db:push` — push Drizzle schema to Postgres
+- `make dev` — start dev server on port 3015
+- `make build` — production build
+- `make db-push` — push schema to database
 
 ## Quality Standards
-- TypeScript strict mode, no `any` types
-- Every feature must have at least one unit test AND one Playwright E2E test
+- Strict type checking enabled (language-specific: TypeScript strict, Go vet, etc.)
+- Every feature must have at least one unit test AND one E2E test
 - Run `make check && make test` before every commit
 - Small, focused commits — one feature per commit
 
 ## Architecture
-- `src/` — populated by onboarding based on stackProfile (framework entry points, pages, API routes)
-- `src/lib/` — utilities, helpers, API clients
-- `src/lib/db/` — Drizzle ORM schema and client (pre-configured)
-- `src/types/` — TypeScript types
-- `tests/` — unit tests (Vitest)
-- `tests/e2e/` — E2E tests (Playwright)
-- `packages/sdk/` — TypeScript SDK package (if target product has an SDK)
+- `src/` (or language equivalent) — populated by onboarding based on stackProfile
+- Source layout depends on the template — read `BUILD_GUIDE.md` (copied from template during setup) for stack-specific structure
+- `tests/` — unit tests
+- `tests/e2e/` — E2E tests
+- `packages/sdk/` — SDK package (if target product has an SDK)
 - `scripts/` — infrastructure and deployment scripts
 
 ## Pre-configured (DO NOT reinstall or recreate)
-- **Playwright** — `playwright.config.ts`, `tests/e2e/`, `npm run test:e2e`
-- **Biome** — `biome.json`, fast lint + format
-- **Makefile** — `make check`, `make test`, `make test-e2e`, `make all`
+- **Makefile** — `make check`, `make test`, `make test-e2e`, `make all` (contract targets)
+- **hack/run_silent.sh** — output formatting helper used by Makefile
+
+## Stack Setup
+- Onboarding writes `ralph-config.json` and runs `setup-stack.sh`
+- The setup script copies template files, appends Makefile targets, installs dependencies
+- Check `.ralph-setup-done` to see which template was used
+- Read `BUILD_GUIDE.md` in the repo root for stack-specific build instructions
 
 ## Environment
-- **AWS CLI** — configure via `aws configure`. `aws` commands and `@aws-sdk/*` packages work out of the box.
+- **Cloud CLI** — configure via onboarding (AWS, Vercel, GCP, Azure)
 - **`.env`** — copy from `.env.example` and fill in your values
 
 ## Authentication
@@ -54,21 +55,14 @@ Check `authMode` in `ralph-config.json` before building any auth. If `authMode` 
 
 **`authMode: "api-key"`** (personal/solo use):
 - Protect all API routes and the dashboard with a single `DASHBOARD_KEY` env var
-- Check `Authorization: Bearer ${DASHBOARD_KEY}` in a Next.js middleware (`src/middleware.ts`)
+- Check `Authorization: Bearer ${DASHBOARD_KEY}` in middleware
 - No login/signup UI, no sessions, no user table needed
-- Do NOT install Better Auth
 
 **`authMode: "better-auth"`** (multi-user):
-- Use **Better Auth** — `npm install better-auth`
-- Match the target product's auth methods: email/password, OAuth providers (Google, GitHub, etc.), magic links
-- Protect routes via Next.js middleware (`src/middleware.ts`)
-- Store sessions in Postgres via Better Auth's built-in Drizzle adapter
+- Use **Better Auth** (TypeScript) or equivalent auth library for other languages
+- Match the target product's auth methods: email/password, OAuth providers, magic links
+- Protect routes via middleware
 - Auth is **P1 priority** — build it before core features
-- **Google OAuth setup**: redirect URI must be registered in Google Cloud Console:
-  - Dev: `http://localhost:3015/api/auth/callback/google`
-  - Prod: `https://your-domain.com/api/auth/callback/google`
-  - OAuth consent screen must be "External" + Published, or test accounts must be added
-  - For Ever CLI QA: the browser's logged-in Google account must be an authorized test user
 
 ## Out of Scope — DO NOT build
 - Paywalls, billing, subscription management

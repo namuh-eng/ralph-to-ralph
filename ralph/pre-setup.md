@@ -2,26 +2,30 @@
 
 Everything listed here is already installed and configured. Do NOT reinstall, reconfigure, or overwrite these.
 
-## Tooling
-- **Framework** — installed during onboarding based on `stackProfile` in `ralph-config.json`
-- **TypeScript** — `tsconfig.json` (strict mode, `@/` path aliases)
-- **Biome** — `biome.json` (lint + format, replaces ESLint/Prettier)
-- **Vitest** — `vitest.config.ts` (jsdom, path aliases, `tests/*.test.ts`)
-- **Playwright** — `playwright.config.ts` + Chromium installed (`tests/e2e/*.spec.ts`)
-- **Drizzle ORM** — `drizzle.config.ts` + `src/lib/db/index.ts` + `src/lib/db/schema.ts`
-- **Docker** — `Dockerfile` (multi-stage, generic Node.js) + `.dockerignore`
+## Base Tooling (always present)
+- **Makefile** — contract targets (`make check`, `make test`, `make dev`, etc.) with guard clause
+- **hack/run_silent.sh** — output formatting helper sourced by Makefile targets
+- **.gitignore** — universal ignores; language-specific entries appended by onboarding
 
-Note: Framework is installed during onboarding based on stackProfile (api-service, dashboard-app, platform, content-app, realtime-app).
+## Stack Tooling (installed by onboarding)
+Onboarding reads `ralph-config.json` and runs `setup-stack.sh`, which:
+1. Copies config files from the matching template in `.claude/skills/ralph-to-ralph-onboard/templates/`
+2. Appends real Makefile targets (typecheck, lint, test, dev, build, etc.)
+3. Installs dependencies (`npm install`, `go mod download`, `pip install`, etc.)
+4. Creates `.ralph-setup-done` marker file
+
+Check `ralph-config.json` for `language` and `stackProfile` to know which template was used.
+Read `BUILD_GUIDE.md` (copied from template) for stack-specific project structure and commands.
 
 ## Commands (use these, don't create new ones)
-- `make check` — typecheck + Biome lint/format
-- `make test` — unit tests (Vitest)
-- `make test-e2e` — E2E tests (Playwright, needs dev server)
+- `make check` — typecheck + lint/format
+- `make test` — unit tests
+- `make test-e2e` — E2E tests (needs dev server)
 - `make all` — check + test
 - `make fix` — auto-fix lint/format issues
-- `make db-push` — push Drizzle schema to Postgres
-- `npm run dev` — dev server on port **3015**
-- `npm run build` — production build
+- `make dev` — dev server on port **3015**
+- `make build` — production build
+- `make db-push` — push schema to database (if applicable)
 
 ## AWS Infrastructure (provision with scripts/preflight.sh)
 Run `bash scripts/preflight.sh` before starting the loop. It creates:
@@ -35,14 +39,11 @@ If you want auto-configure for domain verification, add to `.env`:
 - `CLOUDFLARE_API_TOKEN` — API token with Edit zone DNS permission
 - `CLOUDFLARE_ZONE_ID` — your domain's zone ID
 
-## Project Structure (already scaffolded)
+## Project Structure (after onboarding)
 ```
-src/               — empty; populated by onboarding based on stackProfile
-src/lib/           — Utilities and clients
-src/lib/db/        — Drizzle ORM (index.ts + schema.ts ready)
-src/types/         — TypeScript types
-tests/             — Unit tests (Vitest)
-tests/e2e/         — E2E tests (Playwright)
+src/               — source code (structure depends on template/BUILD_GUIDE.md)
+tests/             — Unit tests
+tests/e2e/         — E2E tests
 packages/sdk/      — SDK package (created by build agent if target has SDK)
 ralph/screenshots/inspect/ — Original product screenshots
 ralph/screenshots/build/   — Build verification screenshots

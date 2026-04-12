@@ -5,3 +5,5 @@
 //
 // Product-specific tables are appended here by the build agent
 // based on the inspected PRD and build-spec.md.
+
+export {};

@@ -1,6 +1,3 @@
-# This Dockerfile is rewritten by onboarding based on stackProfile.
-# The generic multi-stage build below works for any Node.js framework.
-
 FROM node:20-alpine AS base
 
 FROM base AS deps
@@ -19,12 +16,12 @@ FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nodejs
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-USER nodejs
+RUN adduser --system --uid 1001 nextjs
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-CMD ["node", "dist/server.js"]
+CMD ["node", "server.js"]
