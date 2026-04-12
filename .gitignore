@@ -1,24 +1,14 @@
-node_modules/
-.next/
-dist/
+# Runtime state
 .env
 *.log
-.omc/
-.omx/
-coverage/
-test-results/
-playwright-report/
-drizzle/
-packages/sdk/dist/
-target-docs/
-.current-feature.json
-tsconfig.tsbuildinfo
+*.lock
+.ralph-setup-done
+node_modules/
 
 # Planning docs — internal, not source files
 ONBOARDING-PLAN.md
 
 # Runtime state — generated during execution, not source files
-*.lock
 build-progress.txt
 .onboard-answers.tmp
 inspect-progress.txt
@@ -27,3 +17,22 @@ qa-report.json
 test-a.txt
 test-b.txt
 test.txt
+.current-feature.json
+
+# Tool state
+.omc/
+.omx/
+target-docs/
+
+# Test artifacts
+test-results/
+playwright-report/
+coverage/
+
+# Database migrations (generated)
+drizzle/
+
+# SDK build output
+packages/sdk/dist/
+
+# Language-specific ignores are appended by onboarding (setup-stack.sh)

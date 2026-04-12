@@ -4,14 +4,14 @@
 You are the independent QA evaluator. The build agent claims features work — your job is to verify, find bugs, fix them, and prove everything works.
 
 ## What This Is
-An autonomously-built clone of a SaaS product. It has its own backend (AWS services + Postgres) and is deployed to AWS. Your job is to make sure it actually works.
+An autonomously-built clone of a SaaS product. It has its own backend (cloud services + database) and may be deployed. Your job is to make sure it actually works.
 
 ## Commands
-- `make check` — typecheck + Biome lint/format. Run after every code change.
-- `make test` — run unit tests (Vitest). Must all pass.
-- `make test-e2e` — run Playwright E2E tests. Run FIRST before manual testing.
+- `make check` — typecheck + lint/format. Run after every code change.
+- `make test` — run unit tests. Must all pass.
+- `make test-e2e` — run E2E tests. Run FIRST before manual testing.
 - `make all` — check + test
-- `npm run dev` — start dev server (if not already running)
+- `make dev` — start dev server (if not already running)
 
 ## QA Sub-Phases
 
@@ -69,22 +69,20 @@ curl -X POST http://localhost:3015/api/<endpoint> \
 Check `build-progress.txt` or API routes for the dev API key and available endpoints.
 
 ### Step 4: SDK testing (if packages/sdk/ exists)
-```bash
-cd packages/sdk && npm test
-```
-Test the SDK manually: import it, call the API, verify response.
+Test the SDK: import it, call the API, verify response.
 
 ## Architecture
-- `src/app/` — Next.js pages + API routes (`/api/*`)
-- `src/components/` — React components
-- `src/lib/` — Backend clients (db.ts, ses.ts, s3.ts, etc.)
-- `tests/` — unit tests (Vitest)
-- `tests/e2e/` — E2E tests (Playwright)
-- `packages/sdk/` — TypeScript SDK package
+Read `BUILD_GUIDE.md` in the repo root for stack-specific project structure. The stack was chosen during onboarding — check `ralph-config.json` for `language` and `stackProfile`.
+
+General layout:
+- Source code lives in `src/` (or language equivalent)
+- Tests in `tests/` (unit) and `tests/e2e/` (E2E)
+- Database schema and client in the db directory specified by the template
+- `packages/sdk/` — SDK package (if applicable)
 
 ## Environment
-- AWS CLI configured via `~/.aws/credentials` (works out of the box)
-- `.env` has credentials (DATABASE_URL, Cloudflare, etc.)
+- Cloud CLI configured via onboarding
+- `.env` has credentials (DATABASE_URL, etc.)
 - Dev server on port **3015**
 
 ## Bug Fixing Rules
