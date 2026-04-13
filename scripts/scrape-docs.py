@@ -80,6 +80,17 @@ DEFAULT_CONCURRENCY = 8
 CRAWL_MAX_DEPTH = 3
 CRAWL_MAX_PAGES = 500
 
+# A single page larger than this counts as a "trusted dump" -- we accept the
+# coverage gate even with very few pages, because the underlying content is
+# already enormous (e.g. Supabase ships its API reference as a handful of
+# 50KB-1MB ``llms/<lang>.txt`` files).
+HUGE_DUMP_BYTES = 100_000
+
+# URL extensions that already serve raw text/markdown. We bypass Scrapling's
+# HTML parser for these because it wraps plain text in ``<html><body><p>``,
+# corrupting the contents.
+_PLAIN_TEXT_EXTS = (".txt", ".md")
+
 # Path fragments that look like documentation. Used to filter sitemap URLs and
 # crawler link discovery so we don't drag in marketing pages.
 DOC_PATH_HINTS = (
@@ -159,6 +170,12 @@ def looks_like_doc_url(url: str) -> bool:
 _PATH_SAFE_RE = re.compile(r"[^a-zA-Z0-9/._\-]")
 
 
+def _is_plain_text_url(url: str) -> bool:
+    parsed = urlparse(url)
+    path = (parsed.path or "").lower()
+    return path.endswith(_PLAIN_TEXT_EXTS)
+
+
 def url_to_rel_path(url: str) -> str:
     """Map a URL to a filesystem-safe ``.md`` path under ``target-docs/``."""
     parsed = urlparse(url)
@@ -167,6 +184,9 @@ def url_to_rel_path(url: str) -> str:
         path = path + "index"
     path = path.lstrip("/")
     path = re.sub(r"\.(html?|php|aspx?)$", "", path, flags=re.IGNORECASE)
+    # Strip trailing ``.md`` / ``.txt`` so we don't end up with ``foo.md.md``
+    # when the source URL already advertises raw markdown / text.
+    path = re.sub(r"\.(md|txt)$", "", path, flags=re.IGNORECASE)
     if parsed.query:
         path = f"{path}__{re.sub(r'[^a-zA-Z0-9]+', '_', parsed.query)}"
     path = _PATH_SAFE_RE.sub("_", path)
@@ -216,11 +236,21 @@ def _is_usable(status: int, html: str) -> bool:
 def fetch_html(url: str) -> tuple[str, str] | None:
     """Try Fetcher -> StealthyFetcher -> PlayWrightFetcher.
 
-    Returns ``(html, fetcher_name)`` on success, ``None`` if every fetcher
+    Returns ``(content, fetcher_name)`` on success, ``None`` if every fetcher
     failed or all responses were unusable. Note that ``StealthyFetcher`` and
     ``PlayWrightFetcher`` use *milliseconds* for ``timeout``, while
     ``Fetcher.get`` uses *seconds* -- a Scrapling API quirk.
+
+    URLs that already advertise plain text / markdown (``.txt`` / ``.md``) are
+    bypassed through ``requests`` so we don't run them through Scrapling's
+    HTML parser, which wraps them in ``<html><body><p>...`` and corrupts the
+    content for trafilatura.
     """
+    if _is_plain_text_url(url):
+        text = fetch_text(url)
+        if text and len(text) >= MIN_CONTENT_CHARS:
+            return text, "requests"
+        return None
     attempts: list[tuple[str, Callable[[], object]]] = [
         (
             "fetcher",
@@ -529,6 +559,11 @@ def fetch_many(urls: list[str], concurrency: int) -> tuple[list[tuple[str, str, 
 
 
 def html_to_markdown(html: str, url: str) -> str:
+    # Plain-text / markdown URLs are already in the right shape -- ``fetch_html``
+    # routes them through ``requests`` and returns the body verbatim. Running
+    # them through trafilatura would extract <p>-wrapped junk.
+    if _is_plain_text_url(url):
+        return html.strip()
     md = trafilatura.extract(
         html,
         url=url,
@@ -605,8 +640,14 @@ def coverage_check(
     }
     enough_pages = len(pages) >= min_pages
     full_dump = any(p.rel_path == "full-docs.md" for p in pages)
+    # Trust any single huge page as a "dump" (e.g. Supabase ships its full
+    # JS reference as one ~1MB ``llms/js.txt`` file). With several of these
+    # plus an OpenAPI spec we have plenty for the build phase, even though
+    # the raw page count is below the default gate.
+    huge_dump = any(p.bytes_in >= HUGE_DUMP_BYTES for p in pages)
+    summary["has_huge_dump"] = huge_dump
     # If we got llms-full.txt we trust it without the page count requirement.
-    ok = (enough_pages or full_dump)
+    ok = enough_pages or full_dump or huge_dump
     summary["passed"] = ok
     if not ok:
         if not enough_pages:
