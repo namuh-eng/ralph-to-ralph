@@ -16,9 +16,9 @@ useful pages:
   6. Recursive BFS crawl from ``/docs``
 
 Each fetch goes through a Scrapling fallback chain (``Fetcher`` ->
-``StealthyFetcher`` -> ``DynamicFetcher``) so static HTML, Cloudflare-protected,
-and SPA-rendered doc sites all work without separate code paths. Content is
-extracted to markdown with trafilatura.
+``StealthyFetcher`` -> ``PlayWrightFetcher``) so static HTML,
+Cloudflare-protected, and SPA-rendered doc sites all work without separate
+code paths. Content is extracted to markdown with trafilatura.
 
 Exit codes:
   0 -- success, coverage gate passed
@@ -44,7 +44,7 @@ from urllib.parse import urljoin, urlparse, urldefrag, urlunparse
 # --- Dependency imports (fail loud if missing) ---------------------------------
 
 try:
-    from scrapling.fetchers import Fetcher, StealthyFetcher, DynamicFetcher  # type: ignore
+    from scrapling.fetchers import Fetcher, StealthyFetcher, PlayWrightFetcher  # type: ignore
 except Exception as exc:  # pragma: no cover - environment guard
     sys.stderr.write(
         "ERROR: failed to import scrapling. Install deps with:\n"
@@ -63,6 +63,12 @@ except Exception as exc:  # pragma: no cover - environment guard
         f"Underlying error: {exc}\n"
     )
     raise SystemExit(3)
+
+# ``requests`` ships as a transitive dep of Scrapling. We use it directly for
+# manifest probes (llms.txt, mint.json, openapi.json, sitemap.xml) because
+# Scrapling's ``Fetcher.get`` always parses responses as HTML and wraps plain
+# text / JSON in ``<html><body><p>...</p></body></html>``, corrupting the data.
+import requests  # type: ignore
 
 
 # --- Constants -----------------------------------------------------------------
@@ -115,6 +121,7 @@ class ScrapeResult:
     discovery: str = ""
     pages: list[FetchedPage] = field(default_factory=list)
     failures: list[tuple[str, str]] = field(default_factory=list)
+    openapi_path: str | None = None
 
 
 # --- Logging -------------------------------------------------------------------
@@ -172,30 +179,26 @@ def url_to_rel_path(url: str) -> str:
 
 
 def _fetcher_html(page: object) -> tuple[int, str]:
-    """Extract status + html from a Scrapling response, defensively."""
-    status = 0
-    for attr in ("status", "status_code"):
-        value = getattr(page, attr, None)
-        if isinstance(value, int):
-            status = value
-            break
+    """Extract status + html from a Scrapling Response.
 
-    html: str = ""
-    for attr in ("html_content", "body", "text", "content"):
-        value = getattr(page, attr, None)
-        if value is None:
-            continue
-        if isinstance(value, bytes):
-            html = value.decode("utf-8", errors="replace")
-            break
-        if isinstance(value, str) and value:
-            html = value
-            break
-    if not html:
-        try:
-            html = str(page)
-        except Exception:
-            html = ""
+    Scrapling's ``Response`` exposes:
+      - ``status`` (int) -- HTTP status code
+      - ``html_content`` (str) -- raw HTML body, the canonical attribute
+      - ``body`` -- a ``TextHandler`` wrapper (not what we want)
+      - ``text`` -- *extracted* body text (way too short for full HTML)
+
+    Always read ``html_content``. Everything else is a trap.
+    """
+    status_value = getattr(page, "status", None)
+    status = status_value if isinstance(status_value, int) else 0
+
+    html_value = getattr(page, "html_content", None)
+    if isinstance(html_value, bytes):
+        html = html_value.decode("utf-8", errors="replace")
+    elif isinstance(html_value, str):
+        html = html_value
+    else:
+        html = ""
     return status, html
 
 
@@ -211,10 +214,12 @@ def _is_usable(status: int, html: str) -> bool:
 
 
 def fetch_html(url: str) -> tuple[str, str] | None:
-    """Try Fetcher -> StealthyFetcher -> DynamicFetcher.
+    """Try Fetcher -> StealthyFetcher -> PlayWrightFetcher.
 
     Returns ``(html, fetcher_name)`` on success, ``None`` if every fetcher
-    failed or all responses were unusable.
+    failed or all responses were unusable. Note that ``StealthyFetcher`` and
+    ``PlayWrightFetcher`` use *milliseconds* for ``timeout``, while
+    ``Fetcher.get`` uses *seconds* -- a Scrapling API quirk.
     """
     attempts: list[tuple[str, Callable[[], object]]] = [
         (
@@ -223,7 +228,7 @@ def fetch_html(url: str) -> tuple[str, str] | None:
                 url,
                 stealthy_headers=True,
                 follow_redirects=True,
-                timeout=20,
+                timeout=20,  # seconds
             ),
         ),
         (
@@ -232,17 +237,20 @@ def fetch_html(url: str) -> tuple[str, str] | None:
                 url,
                 headless=True,
                 block_images=True,
+                disable_resources=True,
                 network_idle=False,
-                timeout=30,
+                humanize=False,
+                timeout=30000,  # milliseconds
             ),
         ),
         (
-            "dynamic",
-            lambda: DynamicFetcher.fetch(
+            "playwright",
+            lambda: PlayWrightFetcher.fetch(
                 url,
                 headless=True,
                 network_idle=True,
-                timeout=45,
+                disable_resources=True,
+                timeout=45000,  # milliseconds
             ),
         ),
     ]
@@ -262,18 +270,31 @@ def fetch_html(url: str) -> tuple[str, str] | None:
 
 
 def fetch_text(url: str) -> str | None:
-    """Variant of ``fetch_html`` that returns the raw text without validation
-    against the rate-limit/length heuristics. Used for tiny manifest files
-    like ``llms.txt`` or ``mint.json`` where short responses are legitimate."""
+    """Fetch a manifest file (``llms.txt``, ``llms-full.txt``, ``mint.json``,
+    ``openapi.json``, ``sitemap.xml``) and return the raw response body. We use
+    ``requests`` directly instead of Scrapling's ``Fetcher.get`` because the
+    latter always parses responses through an HTML parser and wraps plain
+    text / JSON / XML in ``<html><body><p>...</p></body></html>``, which
+    corrupts the manifest contents."""
     try:
-        page = Fetcher.get(url, stealthy_headers=True, follow_redirects=True, timeout=15)
+        r = requests.get(
+            url,
+            timeout=15,
+            allow_redirects=True,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (compatible; ralph-to-ralph-scraper/1.0; "
+                    "+https://github.com/anthropics/claude-code)"
+                ),
+                "Accept": "*/*",
+            },
+        )
     except Exception as exc:
         log(f"  manifest probe failed {url}: {exc}")
         return None
-    status, html = _fetcher_html(page)
-    if status and status >= 400:
+    if r.status_code >= 400:
         return None
-    return html or None
+    return r.text or None
 
 
 # --- Discovery sources ---------------------------------------------------------
@@ -567,8 +588,10 @@ def write_index(out_dir: Path, pages: list[FetchedPage]) -> None:
 def coverage_check(
     pages: list[FetchedPage],
     min_pages: int,
+    openapi_path: str | None = None,
 ) -> tuple[bool, dict]:
-    has_api_reference = any(
+    has_openapi = openapi_path is not None
+    has_api_reference = has_openapi or any(
         any(hint in page.url.lower() or hint in page.rel_path.lower() for hint in API_REFERENCE_HINTS)
         for page in pages
     )
@@ -577,6 +600,7 @@ def coverage_check(
         "page_count": len(pages),
         "min_pages_required": min_pages,
         "has_api_reference": has_api_reference,
+        "has_openapi": has_openapi,
         "total_bytes": total_bytes,
     }
     enough_pages = len(pages) >= min_pages
@@ -611,6 +635,7 @@ def run_pipeline(
     openapi_path = discover_openapi(base_url, out_dir)
     if openapi_path:
         log(f"  openapi spec written: {openapi_path}")
+        result.openapi_path = openapi_path
 
     # 1. llms-full.txt
     full_url = discover_llms_full(base_url)
@@ -807,7 +832,7 @@ def main() -> int:
 
     write_index(out_dir, result.pages)
 
-    ok, summary = coverage_check(result.pages, args.min_pages)
+    ok, summary = coverage_check(result.pages, args.min_pages, result.openapi_path)
     summary["discovery"] = result.discovery
     summary["elapsed_seconds"] = round(elapsed, 1)
     summary["failure_count"] = len(result.failures)
