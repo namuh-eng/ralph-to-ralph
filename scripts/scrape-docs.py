@@ -604,6 +604,40 @@ def write_full_dump(out_dir: Path, url: str, text: str) -> FetchedPage:
     )
 
 
+# llms-full.txt files follow the llms.txt spec: each section starts with a
+# ``# Title`` heading followed immediately by a ``Source: <url>`` line. We
+# parse on that boundary and split the monolithic dump into per-page files
+# so the build loop can ``cat`` a single route instead of grepping a 1MB
+# wall of text.
+_LLMS_FULL_BOUNDARY = re.compile(
+    r"^# (?P<title>[^\n]+)\nSource:\s*(?P<url>https?://\S+)\s*$",
+    re.MULTILINE,
+)
+
+
+def split_llms_full_dump(text: str) -> list[tuple[str, str, str]]:
+    """Split an llms-full.txt dump into per-page ``(url, title, body)`` tuples.
+
+    Returns an empty list if the dump doesn't match the expected structure
+    (fewer than 5 boundaries), so callers can fall back to writing the whole
+    file unsplit.
+    """
+    matches = list(_LLMS_FULL_BOUNDARY.finditer(text))
+    if len(matches) < 5:
+        return []
+    sections: list[tuple[str, str, str]] = []
+    for i, m in enumerate(matches):
+        title = m.group("title").strip()
+        url = m.group("url").strip()
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        body = text[start:end].strip()
+        if not body:
+            continue
+        sections.append((url, title, body))
+    return sections
+
+
 def write_index(out_dir: Path, pages: list[FetchedPage]) -> None:
     lines = ["# target-docs index", ""]
     for page in sorted(pages, key=lambda p: p.rel_path):
@@ -683,9 +717,32 @@ def run_pipeline(
     if full_url:
         text = fetch_text(full_url)
         if text:
-            page = write_full_dump(out_dir, full_url, text)
+            # Always keep the monolithic dump around for broad cross-doc
+            # grep, but also split it into per-page files so the build loop
+            # can cat a single route. Fall back to the unsplit dump if the
+            # file doesn't match the standard ``# Title\nSource: ...`` shape.
+            write_full_dump(out_dir, full_url, text)
+            sections = split_llms_full_dump(text)
+            if sections:
+                log(f"  split llms-full.txt into {len(sections)} per-page files")
+                for url, title, body in sections:
+                    md = f"# {title}\n\n{body}"
+                    page = write_page(out_dir, url, md)
+                    result.pages.append(page)
+                result.discovery = "llms-full.txt (split)"
+                return result
+            # Unsplittable dump -- fall back to treating the whole file as
+            # the only "page".
+            result.pages = [
+                FetchedPage(
+                    url=full_url,
+                    rel_path="full-docs.md",
+                    markdown=text,
+                    fetcher="requests",
+                    bytes_in=len(text.encode("utf-8")),
+                )
+            ]
             result.discovery = "llms-full.txt"
-            result.pages = [page]
             return result
 
     # 2. llms.txt
