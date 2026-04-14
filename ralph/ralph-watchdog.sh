@@ -169,7 +169,7 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
 
   while [ "$(qa_complete)" != "true" ] && [ "$qa_restarts" -lt "$MAX_QA_RESTARTS" ]; do
     qa_restarts=$((qa_restarts + 1))
-    QA_SO_FAR=$(python3 -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo "0")
+    QA_SO_FAR=$($PY -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo "0")
     check_time_budget
     log "Phase 3: Running QA... $QA_SO_FAR/$(total_tasks) passed (attempt $qa_restarts/$MAX_QA_RESTARTS)"
     ./ralph/qa-ralph.sh "$TARGET_URL" || true

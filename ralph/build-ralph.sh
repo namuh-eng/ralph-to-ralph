@@ -13,6 +13,13 @@ if ! command -v timeout &>/dev/null; then
   fi
 fi
 
+# Resolve Python: prefer `uv run python3` if uv is available, fall back to bare python3
+if command -v uv &>/dev/null; then
+  PY="uv run python3"
+else
+  PY="python3"
+fi
+
 ITERATIONS="${1:-999}"
 
 [ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./ralph/onboard.sh first."; exit 1; }
@@ -35,15 +42,15 @@ echo ""
 touch build-progress.txt
 
 count_passes() {
-  python3 -c "import json; d=json.load(open('prd.json')); print(sum(1 for x in d if x.get('build_pass', False)))" 2>/dev/null || echo "0"
+  $PY -c "import json; d=json.load(open('prd.json')); print(sum(1 for x in d if x.get('build_pass', False)))" 2>/dev/null || echo "0"
 }
 total_tasks() {
-  python3 -c "import json; print(len(json.load(open('prd.json'))))" 2>/dev/null || echo "0"
+  $PY -c "import json; print(len(json.load(open('prd.json'))))" 2>/dev/null || echo "0"
 }
 
 # Get QA failure context for the next feature to build (if any)
 get_qa_context() {
-  python3 -c "
+  $PY -c "
 import json, sys
 
 # Find the first feature where build_pass is false
