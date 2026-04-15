@@ -59,7 +59,7 @@ If Google OAuth is too complex for Playwright (it involves third-party redirects
 **Do NOT skip this step.** Every E2E test behind an auth wall will fail without it. Do NOT weaken tests by removing auth checks — fix the test infrastructure instead.
 
 ### Step A2: Authenticate Before Testing
-Start dev server if not running (`npm run dev`).
+Start dev server if not running (`make dev`).
 Open clone in Ever CLI: `ever start --url http://localhost:3015` (reuse existing session if running).
 **Check if you're logged in** — navigate to any app page. If redirected to `/login`, authenticate first:
    - Read `TEST_ACCOUNT_EMAIL` from `.env` for the Google account to use. If not set, check `ralph-config.json` for `testAccount.provider`.
@@ -132,10 +132,7 @@ Test live URL with same curl/SDK commands.
 Test every API endpoint relevant to this feature for correct shapes, status codes, and error formats.
 
 ### Step B1: Discover Endpoints
-List the API routes for this feature:
-```bash
-find src/app/api -name "route.ts" | sort
-```
+List the API routes for this feature. The exact discovery command depends on your stack — check `$STACK_HINTS` in the prompt header or `BUILD_GUIDE.md` for the right incantation. For Next.js App Router, it's `find src/app/api -name "route.ts" | sort`; for Go, grep for `http.HandleFunc`/router mounts; for Python, inspect your framework's router config.
 Identify all endpoints touched by the feature under test.
 
 ### Step B2: Happy-path contract checks
@@ -232,12 +229,9 @@ Note any bypass, injection success, CORS misconfiguration, or data leak. Fix cri
 
 Run axe-core accessibility checks on every page touched by this feature.
 
-### Step D1: Install axe if needed
-```bash
-npm list @axe-core/playwright 2>/dev/null || npm install --save-dev @axe-core/playwright
-```
+**Applicability:** This sub-phase requires Playwright + `@axe-core/playwright` (JS/TS stacks only). For non-JS stacks, mark this sub-phase `skip` with reason `"axe-core not applicable to {stackProfile}"` and do the manual spot-checks in Step D3 only. The `A11Y_APPLICABLE` flag in the prompt header tells you whether the automated scan is available — `@axe-core/playwright` is pre-installed by `qa-ralph.sh` before the loop starts when applicable.
 
-### Step D2: Run axe scan via Playwright
+### Step D1: Run axe scan via Playwright
 Create or run a temporary accessibility test:
 ```bash
 cat > /tmp/axe-check.ts << 'EOF'
@@ -263,14 +257,14 @@ EOF
 npx playwright test /tmp/axe-check.ts --reporter=list
 ```
 
-### Step D3: Manual accessibility spot-checks (Ever CLI)
+### Step D2: Manual accessibility spot-checks (Ever CLI)
 - `ever snapshot` and check: are interactive elements keyboard-navigable?
 - Do form inputs have visible labels?
 - Are error messages associated with their inputs (aria)?
 - Is color contrast sufficient for text on colored backgrounds?
 
-### Step D4: Record accessibility results
-List any WCAG 2.0 AA violations found. Fix critical violations. Log serious/moderate as known issues.
+### Step D3: Record accessibility results
+List any WCAG 2.1 AA violations found. Fix critical violations. Log serious/moderate as known issues.
 
 ---
 

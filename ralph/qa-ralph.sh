@@ -33,6 +33,19 @@ get_qa_timeout() {
 
 [ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./ralph/onboard.sh first."; exit 1; }
 BROWSER_AGENT=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
+STACK_PROFILE=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('stackProfile', 'unknown'))" 2>/dev/null || echo "unknown")
+
+# Stack-specific QA hints injected into the Codex prompt. Non-JS stacks skip axe-core.
+case "$STACK_PROFILE" in
+  typescript-nextjs)
+    ENDPOINT_DISCOVERY='find src/app/api -name "route.ts" | sort'
+    A11Y_APPLICABLE="yes"
+    ;;
+  *)
+    ENDPOINT_DISCOVERY='# Discover API routes per your stack — see BUILD_GUIDE.md'
+    A11Y_APPLICABLE="no"
+    ;;
+esac
 
 if [ ! -f "prd.json" ]; then
   echo "Error: prd.json not found. Run build-ralph.sh first."
@@ -76,7 +89,7 @@ print('Initialized qa-report-summary.json')
 fi
 
 # Start dev server in background
-npm run dev &
+make dev &
 DEV_PID=$!
 echo "Dev server started (PID: $DEV_PID)"
 if [ "$BROWSER_AGENT" = "ever" ]; then
@@ -91,6 +104,15 @@ if [ -f "playwright.config.ts" ] || [ -d "tests/e2e" ]; then
   echo "--- Running Playwright regression suite ---"
   npx playwright test --reporter=list 2>&1 || echo "Some Playwright tests failed — QA agent will investigate."
   echo ""
+fi
+
+# Pre-install @axe-core/playwright for Sub-Phase D (accessibility) on JS stacks
+if [ "$A11Y_APPLICABLE" = "yes" ] && [ -f "package.json" ]; then
+  if ! npm list @axe-core/playwright >/dev/null 2>&1; then
+    echo "--- Installing @axe-core/playwright for accessibility sub-phase ---"
+    npm install --save-dev @axe-core/playwright >/dev/null 2>&1 || echo "axe-core install failed — Sub-Phase D may be skipped"
+    echo ""
+  fi
 fi
 
 # Start browser agent session for QA
@@ -368,6 +390,9 @@ Read these files as needed:
 QA PROGRESS: $TESTED/$TOTAL features done
 FEATURE: $FEATURE_ID (category: $FEATURE_CAT)
 ATTEMPT: $ATTEMPT of $MAX_RETRIES
+STACK_PROFILE: $STACK_PROFILE
+A11Y_APPLICABLE: $A11Y_APPLICABLE (if 'no', mark Sub-Phase D skip with reason)
+ENDPOINT_DISCOVERY: $ENDPOINT_DISCOVERY
 ${TARGET_CONTEXT}
 
 Test this ONE feature thoroughly across ALL FOUR sub-phases:

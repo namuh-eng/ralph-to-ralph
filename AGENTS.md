@@ -27,7 +27,7 @@ Automated and manual verification that the feature works as specified.
 
 ### Sub-Phase B: API CONTRACT
 Verify every API endpoint for this feature returns correct shapes, status codes, and error formats.
-- Discover endpoints: `find src/app/api -name "route.ts" | sort`
+- Discover endpoints per your stack (see `BUILD_GUIDE.md`). For Next.js App Router: `find src/app/api -name "route.ts" | sort`.
 - Happy-path: curl each endpoint, check status + response body shape + Content-Type
 - Error paths: missing fields → 400, no auth → 401, not found → 404, server error → 500 (no stack traces)
 - Fix any endpoint that returns wrong status codes, malformed bodies, or inconsistent error shapes
@@ -41,9 +41,9 @@ Targeted checks for the most impactful vulnerabilities.
 - Fix all critical/major security findings before moving on
 
 ### Sub-Phase D: ACCESSIBILITY
-axe-core scan + manual spot-checks for WCAG 2.0 AA compliance.
-- Install if needed: `npm install --save-dev @axe-core/playwright`
-- Run axe scan via Playwright on every page touched by the feature (tags: wcag2a, wcag2aa)
+axe-core scan + manual spot-checks for WCAG 2.1 AA compliance. JS/TS stacks only — for other stacks, do manual spot-checks only.
+- `@axe-core/playwright` is pre-installed by `qa-ralph.sh` for JS stacks (no need to install inside Codex)
+- Run axe scan via Playwright on every page touched by the feature (tags: wcag2a, wcag2aa, wcag21a, wcag21aa)
 - Manual checks via Ever CLI: keyboard navigation, form labels, aria associations, color contrast
 - Fix critical violations; log serious/moderate as known issues in qa-report.json
 
