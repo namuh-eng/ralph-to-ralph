@@ -64,16 +64,17 @@ fi
 
 # Initialize qa-report-summary.json with schema
 if [ ! -f "qa-report-summary.json" ]; then
-  python3 -c "
+  $PY -c "
 import json
 summary = {
-  'schema_version': '2.0',
+  'schema_version': '2.1',
   'sub_phases': ['functional', 'api_contract', 'security', 'accessibility'],
   'totals': {
     'features_total': 0,
     'features_passed': 0,
     'features_failed': 0,
-    'features_exhausted': 0
+    'features_exhausted': 0,
+    'features_crashed': 0
   },
   'sub_phase_totals': {
     'functional':    {'pass': 0, 'fail': 0, 'skip': 0},
@@ -83,7 +84,8 @@ summary = {
   },
   'features': []
 }
-json.dump(summary, open('qa-report-summary.json', 'w'), indent=2)
+with open('qa-report-summary.json', 'w') as f:
+    json.dump(summary, f, indent=2)
 print('Initialized qa-report-summary.json')
 "
 fi
@@ -182,25 +184,27 @@ print(json.dumps(result))
 
 # ── Helper: get current attempt number for a feature ──
 get_attempt_number() {
-  local feature_id="$1"
   $PY -c "
-import json
+import json, sys
+fid = sys.argv[1]
 try:
-    report = json.load(open('qa-report.json'))
-    attempts = [r for r in report if r['feature_id'] == '$feature_id']
+    with open('qa-report.json') as f:
+        report = json.load(f)
+    attempts = [r for r in report if r['feature_id'] == fid]
     print(len(attempts) + 1)
 except: print(1)
-" 2>/dev/null
+" "$1" 2>/dev/null
 }
 
 # ── Helper: get full attempt history for a feature ──
 get_feature_history() {
-  local feature_id="$1"
   $PY -c "
-import json
+import json, sys
+fid = sys.argv[1]
 try:
-    report = json.load(open('qa-report.json'))
-    attempts = [r for r in report if r['feature_id'] == '$feature_id']
+    with open('qa-report.json') as f:
+        report = json.load(f)
+    attempts = [r for r in report if r['feature_id'] == fid]
     if not attempts:
         print('No previous attempts.')
     else:
@@ -222,7 +226,7 @@ try:
                     print(f'  - {b}')
 except Exception as e:
     print(f'Error reading history: {e}')
-" 2>/dev/null
+" "$1" 2>/dev/null
 }
 
 total_features() {
@@ -247,31 +251,26 @@ except: print(0)
 
 # ── Helper: update qa-report-summary.json after each feature ──
 update_summary() {
-  python3 -c "
+  $PY -c "
 import json
 from collections import Counter
 
 try:
-    prd = json.load(open('prd.json'))
-    report = json.load(open('qa-report.json'))
-    summary = json.load(open('qa-report-summary.json'))
+    with open('prd.json') as f:
+        prd = json.load(f)
+    with open('qa-report.json') as f:
+        report = json.load(f)
+    with open('qa-report-summary.json') as f:
+        summary = json.load(f)
 except Exception as e:
     print(f'Summary update error: {e}')
     exit(0)
 
 MAX_RETRIES = $MAX_RETRIES
+PHASES = ['functional', 'api_contract', 'security', 'accessibility']
 qa_passed = {item['id'] for item in prd if item.get('qa_pass', False)}
 attempt_counts = Counter(r['feature_id'] for r in report)
 exhausted = {fid for fid, count in attempt_counts.items() if count >= MAX_RETRIES and fid not in qa_passed}
-
-summary['totals']['features_total'] = len(prd)
-summary['totals']['features_passed'] = len(qa_passed)
-summary['totals']['features_failed'] = len([f for f in prd if f['id'] not in qa_passed and f['id'] not in exhausted and attempt_counts.get(f['id'], 0) > 0])
-summary['totals']['features_exhausted'] = len(exhausted)
-
-# Reset sub-phase totals
-for phase in ['functional', 'api_contract', 'security', 'accessibility']:
-    summary['sub_phase_totals'][phase] = {'pass': 0, 'fail': 0, 'skip': 0}
 
 # Aggregate sub-phase results from the latest attempt per feature
 latest_attempts = {}
@@ -280,9 +279,36 @@ for entry in report:
     if fid not in latest_attempts or entry.get('attempt', 0) > latest_attempts[fid].get('attempt', 0):
         latest_attempts[fid] = entry
 
+# A feature is 'crashed' when its latest attempt recorded all sub-phases as skip
+# with a 'partial' overall status — that is the shape qa-ralph.sh writes on
+# Codex timeout/crash. Counting those as 'failed' would inflate the failure rate.
+crashed = set()
+for fid, entry in latest_attempts.items():
+    if entry.get('status') != 'partial':
+        continue
+    sub = entry.get('sub_phases', {})
+    if all(sub.get(p, {}).get('status') == 'skip' for p in PHASES):
+        crashed.add(fid)
+
+summary['totals']['features_total'] = len(prd)
+summary['totals']['features_passed'] = len(qa_passed)
+summary['totals']['features_exhausted'] = len(exhausted)
+summary['totals']['features_crashed'] = len(crashed)
+summary['totals']['features_failed'] = len([
+    f for f in prd
+    if f['id'] not in qa_passed
+    and f['id'] not in exhausted
+    and f['id'] not in crashed
+    and attempt_counts.get(f['id'], 0) > 0
+])
+
+# Reset sub-phase totals
+for phase in PHASES:
+    summary['sub_phase_totals'][phase] = {'pass': 0, 'fail': 0, 'skip': 0}
+
 for entry in latest_attempts.values():
     sub = entry.get('sub_phases', {})
-    for phase in ['functional', 'api_contract', 'security', 'accessibility']:
+    for phase in PHASES:
         st = sub.get(phase, {}).get('status', 'skip')
         if st in ('pass', 'fail', 'skip'):
             summary['sub_phase_totals'][phase][st] += 1
@@ -310,9 +336,10 @@ for item in prd:
     feature_list.append(feature_entry)
 
 summary['features'] = feature_list
-json.dump(summary, open('qa-report-summary.json', 'w'), indent=2)
+with open('qa-report-summary.json', 'w') as f:
+    json.dump(summary, f, indent=2)
 print('Updated qa-report-summary.json')
-" 2>/dev/null
+"
 }
 
 # ── MAIN LOOP ──
@@ -341,11 +368,13 @@ for ((i=1; i<=$ITERATIONS; i++)); do
   echo "$FEATURE_BUNDLE" > .current-feature.json
 
   QA_HINTS=$($PY -c "
-import json
+import json, sys
+fid = sys.argv[1]
 try:
-    hints = json.load(open('qa-hints.json'))
+    with open('qa-hints.json') as f:
+        hints = json.load(f)
     for h in hints:
-        if h.get('feature_id') == '$FEATURE_ID':
+        if h.get('feature_id') == fid:
             print('Tests written by build agent: ' + ', '.join(h.get('tests_written', [])))
             print('NEEDS DEEPER QA:')
             for q in h.get('needs_deeper_qa', []):
@@ -355,7 +384,7 @@ try:
         print('No QA hints from build agent for this feature.')
 except:
     print('No qa-hints.json found.')
-" 2>/dev/null)
+" "$FEATURE_ID" 2>/dev/null)
 
   result=$(timeout "$QA_TIMEOUT" codex exec --dangerously-bypass-approvals-and-sandbox \
 "$(cat ralph/qa-prompt.md)
@@ -424,11 +453,14 @@ Then:
   # No promise = crash or context overflow. Record as partial and move on.
   echo "WARNING: No promise from Codex for $FEATURE_ID (attempt $ATTEMPT). Recording as partial..."
   $PY -c "
-import json
-report = json.load(open('qa-report.json'))
+import json, sys
+fid = sys.argv[1]
+attempt = int(sys.argv[2])
+with open('qa-report.json') as f:
+    report = json.load(f)
 report.append({
-    'feature_id': '$FEATURE_ID',
-    'attempt': $ATTEMPT,
+    'feature_id': fid,
+    'attempt': attempt,
     'status': 'partial',
     'sub_phases': {
         'functional':    {'status': 'skip', 'notes': 'Codex crashed or timed out'},
@@ -440,8 +472,9 @@ report.append({
     'bugs_found': [],
     'fix_description': 'Codex did not complete'
 })
-json.dump(report, open('qa-report.json', 'w'), indent=2)
-"
+with open('qa-report.json', 'w') as f:
+    json.dump(report, f, indent=2)
+" "$FEATURE_ID" "$ATTEMPT"
   update_summary
   sleep 3
 done
