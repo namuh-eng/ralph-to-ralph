@@ -232,16 +232,16 @@ Run axe-core accessibility checks on every page touched by this feature.
 **Applicability:** This sub-phase requires Playwright + `@axe-core/playwright` (JS/TS stacks only). For non-JS stacks, mark this sub-phase `skip` with reason `"axe-core not applicable to {stackProfile}"` and do the manual spot-checks in Step D3 only. The `A11Y_APPLICABLE` flag in the prompt header tells you whether the automated scan is available — `@axe-core/playwright` is pre-installed by `qa-ralph.sh` before the loop starts when applicable.
 
 ### Step D1: Run axe scan via Playwright
-Create or run a temporary accessibility test:
+Write the accessibility test inside the project's Playwright test directory so it picks up `playwright.config.ts` automatically. Clean it up after running.
 ```bash
-cat > /tmp/axe-check.ts << 'EOF'
+cat > tests/e2e/axe-check.spec.ts << 'EOF'
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 test('accessibility: <feature page>', async ({ page }) => {
   await page.goto('http://localhost:3015/<feature-path>');
   const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa'])
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
   console.log(JSON.stringify(results.violations.map(v => ({
     id: v.id,
@@ -254,7 +254,8 @@ test('accessibility: <feature page>', async ({ page }) => {
   expect(critical, 'Critical accessibility violations found').toHaveLength(0);
 });
 EOF
-npx playwright test /tmp/axe-check.ts --reporter=list
+npx playwright test tests/e2e/axe-check.spec.ts --reporter=list
+rm -f tests/e2e/axe-check.spec.ts
 ```
 
 ### Step D2: Manual accessibility spot-checks (Ever CLI)
@@ -323,3 +324,20 @@ Update `prd.json` for this feature:
 - Always update `qa_pass` in `prd.json` before outputting the promise.
 - Output `<promise>NEXT</promise>` after committing if more features remain.
 - Output `<promise>QA_COMPLETE</promise>` only if ALL features are QA tested and all `qa_pass: true`.
+
+---
+
+## Final Checklist (verify before outputting your promise)
+
+Stop and verify each item — the prompt is long and it is easy to skip Sub-Phase C or D by accident:
+
+- [ ] **Sub-Phase A (FUNCTIONAL)** — ran unit tests, E2E, manual Ever CLI verification, recorded `status` in qa-report entry
+- [ ] **Sub-Phase B (API CONTRACT)** — discovered endpoints (see `ENDPOINT_DISCOVERY` in prompt header or `BUILD_GUIDE.md`), checked happy-path + error paths, recorded `endpoints_tested` + `status`
+- [ ] **Sub-Phase C (SECURITY)** — ran auth bypass, input sanitization, CORS, and data-exposure probes, recorded `checks` + `status`
+- [ ] **Sub-Phase D (ACCESSIBILITY)** — ran axe-core if `A11Y_APPLICABLE=yes`; otherwise marked `skip` with reason. Recorded `violations` + `status`
+- [ ] **qa-report.json** — appended a NEW entry with `sub_phases` populated for all four phases (do not overwrite)
+- [ ] **prd.json** — updated `qa_pass` for this feature (true only if no critical bugs remain)
+- [ ] **`make check && make test`** — ran once, passed
+- [ ] **Committed and pushed** with a descriptive message
+
+If ANY checkbox is unticked, go back and do that step before outputting the promise.
