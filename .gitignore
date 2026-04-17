@@ -36,3 +36,12 @@ drizzle/
 packages/sdk/dist/
 
 # Language-specific ignores are appended by onboarding (setup-stack.sh)
+.qrspi/
+
+# Editor / docs — not source files
+.obsidian/
+.worktrees/
+agent_docs/
+*.excalidraw
+ralph-loop-architecture.png
+ralph-to-ralph-improvement-plan.md
