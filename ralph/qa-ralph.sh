@@ -47,6 +47,28 @@ case "$STACK_PROFILE" in
     ;;
 esac
 
+# Progressive disclosure: select QA modules based on feature category.
+# base.md (functional) + footer.md are always included.
+get_qa_modules() {
+  local category="$1"
+  local modules=""
+  case "$category" in
+    auth)                modules="api security" ;;
+    crud)                modules="api security a11y" ;;
+    infrastructure)      modules="api security" ;;
+    sdk)                 modules="api" ;;
+    settings)            modules="api a11y" ;;
+    layout|design)       modules="a11y" ;;
+    onboarding)          modules="a11y" ;;
+    *)                   modules="api security" ;;
+  esac
+  # Strip a11y if not applicable for this stack
+  if [ "$A11Y_APPLICABLE" != "yes" ]; then
+    modules=$(echo "$modules" | sed 's/a11y//g' | xargs)
+  fi
+  echo "$modules"
+}
+
 if [ ! -f "prd.json" ]; then
   echo "Error: prd.json not found. Run build-ralph.sh first."
   exit 1
@@ -54,7 +76,7 @@ fi
 
 echo "=== RALPH-TO-RALPH: Phase 3 (QA with Codex) ==="
 echo "Target: ${TARGET_URL:-none}"
-echo "Sub-phases: FUNCTIONAL → API CONTRACT → SECURITY → ACCESSIBILITY"
+echo "Sub-phases: progressive (base + category-specific modules)"
 echo ""
 
 # Initialize
@@ -347,7 +369,7 @@ for ((i=1; i<=$ITERATIONS; i++)); do
   TESTED=$(tested_count)
   TOTAL=$(total_features)
   echo "--- QA iteration $i ($TESTED/$TOTAL done) ---"
-  echo "    Sub-phases: FUNCTIONAL | API CONTRACT | SECURITY | ACCESSIBILITY"
+  echo "    Sub-phases: base + category modules (progressive disclosure)"
 
   FEATURE_BUNDLE=$(get_next_feature_with_deps)
 
@@ -363,7 +385,8 @@ for ((i=1; i<=$ITERATIONS; i++)); do
   HISTORY=$(get_feature_history "$FEATURE_ID")
 
   QA_TIMEOUT=$(get_qa_timeout "$FEATURE_CAT")
-  echo "Testing: $FEATURE_ID ($FEATURE_CAT) — attempt $ATTEMPT/$MAX_RETRIES, $DEP_COUNT dependencies, timeout ${QA_TIMEOUT}s"
+  QA_MODULES=$(get_qa_modules "$FEATURE_CAT")
+  echo "Testing: $FEATURE_ID ($FEATURE_CAT) — attempt $ATTEMPT/$MAX_RETRIES, modules: base ${QA_MODULES:-none} footer, timeout ${QA_TIMEOUT}s"
 
   echo "$FEATURE_BUNDLE" > .current-feature.json
 
@@ -386,8 +409,15 @@ except:
     print('No qa-hints.json found.')
 " "$FEATURE_ID" 2>/dev/null)
 
+  # Assemble QA prompt from modules (progressive disclosure)
+  QA_PROMPT="$(cat ralph/qa/base.md)"
+  for mod in $QA_MODULES; do
+    [ -f "ralph/qa/${mod}.md" ] && QA_PROMPT+=$'\n'"$(cat "ralph/qa/${mod}.md")"
+  done
+  QA_PROMPT+=$'\n'"$(cat ralph/qa/footer.md)"
+
   result=$(timeout "$QA_TIMEOUT" codex exec --dangerously-bypass-approvals-and-sandbox \
-"$(cat ralph/qa-prompt.md)
+"$QA_PROMPT
 
 == FEATURE TO TEST ==
 $($PY -c "import json; d=json.load(open('.current-feature.json')); print(json.dumps(d['main'], indent=2))")
@@ -420,15 +450,12 @@ QA PROGRESS: $TESTED/$TOTAL features done
 FEATURE: $FEATURE_ID (category: $FEATURE_CAT)
 ATTEMPT: $ATTEMPT of $MAX_RETRIES
 STACK_PROFILE: $STACK_PROFILE
-A11Y_APPLICABLE: $A11Y_APPLICABLE (if 'no', mark Sub-Phase D skip with reason)
+QA_MODULES: base $QA_MODULES footer (sub-phases not listed → mark 'skip' in qa-report)
 ENDPOINT_DISCOVERY: $ENDPOINT_DISCOVERY
 ${TARGET_CONTEXT}
 
-Test this ONE feature thoroughly across ALL FOUR sub-phases:
-  A. FUNCTIONAL  — UI flows, unit tests, E2E tests
-  B. API CONTRACT — curl each endpoint, verify status codes + response shapes + error formats
-  C. SECURITY    — auth bypass, input sanitization, CORS, sensitive data exposure
-  D. ACCESSIBILITY — axe-core scan + manual keyboard/label checks
+Test this ONE feature thoroughly across all INCLUDED sub-phases (see QA_MODULES above).
+Sub-phases not included in this prompt should be marked 'skip' in your qa-report entry.
 
 Study the QA history above — if previous attempts failed, try a different approach.
 Then:
@@ -446,7 +473,7 @@ Then:
   update_summary
 
   if [[ "$result" == *"<promise>NEXT</promise>"* ]]; then
-    echo "QA attempt $ATTEMPT for $FEATURE_ID done (all sub-phases). Moving to next..."
+    echo "QA attempt $ATTEMPT for $FEATURE_ID done (modules: base ${QA_MODULES:-none}). Moving to next..."
     continue
   fi
 

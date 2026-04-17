@@ -13,9 +13,15 @@ An autonomously-built clone of a SaaS product. It has its own backend (cloud ser
 - `make all` — check + test
 - `make dev` — start dev server (if not already running)
 
-## QA Sub-Phases
+## QA Sub-Phases (Progressive Disclosure)
 
-Every feature is tested across four sub-phases. Run them in order; skip only if genuinely not applicable.
+Sub-phases are selected per feature category — not every feature runs all four.
+The shell script (`qa-ralph.sh`) assembles the prompt from modules in `ralph/qa/`:
+- `base.md` — always included (functional testing)
+- `api.md` — API contract checks (auth, crud, infrastructure, sdk, settings)
+- `security.md` — security probes (auth, crud, infrastructure)
+- `a11y.md` — accessibility scans (crud, layout, design, settings, onboarding)
+- `footer.md` — always included (record & fix, rules, checklist)
 
 ### Sub-Phase A: FUNCTIONAL
 Automated and manual verification that the feature works as specified.
