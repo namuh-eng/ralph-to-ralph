@@ -72,23 +72,7 @@ Try these sources in order (skip any that fail):
 - What does the SDK API surface look like?
 - Are there React components or template rendering features?
 
-### 3d: Determine Stack Profile
-
-Based on your research, select the `stackProfile` that best matches the target product's architecture. Profiles describe process topology and service boundaries, independent of `language`.
-
-| Profile | Use when | Examples |
-|---------|----------|---------|
-| `api-service` | Core value is delivered via API calls; product has SDKs in multiple languages | Resend, Twilio, Stripe |
-| `dashboard-app` | Core value is a web dashboard users work in daily | PostHog, Linear, Notion |
-| `platform` | Manages compute/deployments for other apps; control plane + worker pattern | Vercel, Railway, Fly.io |
-| `content-app` | Creating and publishing content; SEO matters; reader + editor separation | Ghost, Substack, Contentful |
-| `realtime-app` | Real-time collaboration or live-update features; WebSocket/SSE central | Figma, Liveblocks, Ably |
-
-Set `stackProfile` in `ralph-config.json`. If unsure, default to `dashboard-app`.
-
-Read `ralph/stack-profiles.md` for the full architecture details of each profile — the build agent uses this to determine what services to wire up.
-
-### 3e: Map Required Cloud Services
+### 3d: Map Required Cloud Services
 For each capability the target product offers, identify what cloud service the clone needs:
 
 | Capability | AWS | GCP | Azure |
@@ -102,7 +86,7 @@ For each capability the target product offers, identify what cloud service the c
 
 Only include services the target product actually needs. Not every clone needs email or storage.
 
-### 3f: Graceful Degradation
+### 3e: Graceful Degradation
 If no API docs are found, tell the user:
 > "I couldn't find public API documentation for this product. I'll proceed with your stack preferences. The Inspect phase will discover features by browsing the product."
 
@@ -146,7 +130,6 @@ Write the file `ralph-config.json` with this exact schema:
   "dbProvider": "neon",
   "skipDeploy": false,
   "authMode": "api-key",
-  "stackProfile": "dashboard-app",
   "browserAgent": "ever",
   "services": {
     "email": { "provider": "ses", "package": "@aws-sdk/client-sesv2" },
@@ -191,7 +174,6 @@ The `setup` section is optional for backwards compatibility — older configs wi
 **Required fields:** `targetUrl`, `targetName`, `cloudProvider`, `framework`, `database`.
 **Valid cloudProvider values:** `vercel`, `aws`, `gcp`, `azure`, `custom`.
 **Valid deploymentTier values:** `personal`, `team`.
-- `stackProfile`: "api-service" | "dashboard-app" | "platform" | "content-app" | "realtime-app" — architecture pattern for the clone. Set based on Step 3d analysis. See `ralph/stack-profiles.md` for what each profile configures.
 - `browserAgent`: "ever" | "playwright" | "stagehand" | "custom" — browser agent for inspect and QA phases
 - `testAccount`: `{ "provider": "google", "email": "user@gmail.com" }` — Google account for auth during build/QA testing. The build and QA agents use this to log in via Google OAuth instead of attempting email/magic-link auth (which requires email delivery). Should be the Google account the user's browser is already logged into, so Ever CLI can complete OAuth flows automatically.
 

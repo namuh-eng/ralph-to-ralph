@@ -2,22 +2,6 @@
 
 Everything listed here is already installed and configured. Do NOT reinstall, reconfigure, or overwrite these.
 
-## Stack Profile
-
-Check `stackProfile` in `ralph-config.json` before making framework and dependency decisions. The stack profile determines architecture — which services to initialize, how to structure source code, and which dependencies to install. Profiles are language-agnostic: the same profile applies regardless of whether `language` is `typescript`, `go`, `python`, etc.
-
-| `stackProfile` | Architecture | Key additions |
-|---------------|-------------|---------------|
-| `dashboard-app` | Full-stack web app, server-rendered UI + API routes | Auth library (if multi-user) |
-| `api-service` | Separate API server + frontend | Redis, job queue, SDK package |
-| `platform` | Control plane + worker service | Redis Pub/Sub, CLI package |
-| `content-app` | Web app with ISR/SSG, editor + reader separation | Image storage, CDN headers |
-| `realtime-app` | WebSocket server + frontend | Redis Pub/Sub, WS client |
-
-See `ralph/stack-profiles.md` for the full architecture details of each profile.
-
-If `stackProfile` is missing from `ralph-config.json`, default to `dashboard-app`.
-
 ## Base Tooling (always present)
 - **Makefile** — contract targets (`make check`, `make test`, `make dev`, etc.) with guard clause
 - **hack/run_silent.sh** — output formatting helper sourced by Makefile targets

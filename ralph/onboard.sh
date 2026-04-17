@@ -652,8 +652,6 @@ The user has already provided their answers:
 - Browser agent: $BROWSER_AGENT (ever = Ever CLI for visual inspection; playwright = npx playwright scripted; stagehand = @browserbasehq/stagehand AI agent; custom = $BROWSER_AGENT_DESC). Set this as 'browserAgent' in ralph-config.json.
 - Auth mode: $AUTH_MODE (api-key = personal/solo use, protect all routes with DASHBOARD_KEY bearer token, no login/signup needed; better-auth = multi-user, implement full login/signup with Better Auth + Drizzle adapter). Set this as 'authMode' in ralph-config.json.
 
-Determine 'stackProfile' from your research in Step 3d (see ralph/stack-profiles.md for the 5 valid values). Default to 'dashboard-app' if unsure.
-
 SKIP Steps 1 and 2 (already answered above). Start directly from Step 3 (Technical Architecture Scan).
 Research the target product, generate ralph-config.json, check dependencies, rewrite config files, and install packages.
 If cloudProvider is 'custom' and generator is 'claude': also generate scripts/preflight.sh from the custom stack description.
@@ -697,10 +695,6 @@ if missing:
     sys.exit(1)
 if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
     print(f'ERROR: invalid cloudProvider: {c[\"cloudProvider\"]}', file=sys.stderr)
-    sys.exit(1)
-valid_profiles = ('api-service', 'dashboard-app', 'platform', 'content-app', 'realtime-app')
-if 'stackProfile' in c and c['stackProfile'] not in valid_profiles:
-    print(f'ERROR: invalid stackProfile: {c[\"stackProfile\"]}. Must be one of: {valid_profiles}', file=sys.stderr)
     sys.exit(1)
 " || exit 1
 
