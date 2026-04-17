@@ -1,6 +1,4 @@
-node_modules/
-.next/
-dist/
+# Runtime state
 .env
 *.log
 .omc/
@@ -13,6 +11,9 @@ packages/sdk/dist/
 target-docs*/
 .current-feature.json
 tsconfig.tsbuildinfo
+*.lock
+.ralph-setup-done
+node_modules/
 
 # Doc scraper venv (Phase 1 only, not part of the generated clone)
 .venv-scrape/
@@ -23,7 +24,6 @@ __pycache__/
 ONBOARDING-PLAN.md
 
 # Runtime state — generated during execution, not source files
-*.lock
 build-progress.txt
 .onboard-answers.tmp
 inspect-progress.txt
@@ -32,3 +32,22 @@ qa-report.json
 test-a.txt
 test-b.txt
 test.txt
+.current-feature.json
+
+# Tool state
+.omc/
+.omx/
+target-docs/
+
+# Test artifacts
+test-results/
+playwright-report/
+coverage/
+
+# Database migrations (generated)
+drizzle/
+
+# SDK build output
+packages/sdk/dist/
+
+# Language-specific ignores are appended by onboarding (setup-stack.sh)

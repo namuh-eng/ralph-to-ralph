@@ -7,12 +7,19 @@ cd "$(dirname "$0")/.."
 TARGET_URL="${1:?Usage: $0 <target-url> [iterations]}"
 ITERATIONS="${2:-999}"
 
+# Resolve Python: prefer `uv run python3` if uv is available, fall back to bare python3
+if command -v uv &>/dev/null; then
+  PY="uv run python3"
+else
+  PY="python3"
+fi
+
 [ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./ralph/onboard.sh first."; exit 1; }
-BROWSER_AGENT=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
+BROWSER_AGENT=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
 # docsUrl is set during onboarding when the actual docs live on a different
 # subdomain (e.g. docs.stripe.com vs stripe.com). If present, the scraper
 # targets it directly instead of probing subdomains at runtime.
-DOCS_URL=$(python3 -c "import json; print(json.load(open('ralph-config.json')).get('docsUrl', ''))" 2>/dev/null || echo "")
+DOCS_URL=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('docsUrl', ''))" 2>/dev/null || echo "")
 
 echo "=== RALPH-TO-RALPH: Phase 1 (Inspect) ==="
 echo "Target: $TARGET_URL"
@@ -36,7 +43,7 @@ mkdir -p ralph/screenshots target-docs
 # when a user nuked target-docs/*.md but left coverage.json behind.
 _coverage_passed=0
 if [ -f target-docs/coverage.json ] && [ -f target-docs/INDEX.md ]; then
-  if python3 -c "import json,sys; sys.exit(0 if json.load(open('target-docs/coverage.json')).get('passed') else 1)" 2>/dev/null; then
+  if $PY -c "import json,sys; sys.exit(0 if json.load(open('target-docs/coverage.json')).get('passed') else 1)" 2>/dev/null; then
     _coverage_passed=1
   fi
 fi

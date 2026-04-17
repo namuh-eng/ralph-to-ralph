@@ -119,6 +119,24 @@ Ask something like:
 
 Their answer changes the deployment target recommendation, how much you explain about ops, and which services are worth setting up properly vs. faking.
 
+**If they pick 1 (Personal/hobby)**, offer the beginner fast track:
+
+> "Since this is personal, want me to set things up as a simple app? Most people start with TypeScript + Next.js — one codebase, easy to understand.
+>
+> 1. **Yes, keep it simple** — TypeScript + Next.js, perfect for getting started
+> 2. **Let me choose the stack** — I'll ask more questions about language and architecture"
+
+If they pick **"Yes, keep it simple"**:
+- Write `ralph-config.json` with `language: "typescript"`, `stackProfile: "dashboard-app"`, `authMode: "api-key"`
+- Run the setup script:
+  ```bash
+  bash .claude/skills/ralph-to-ralph-onboard/scripts/setup-stack.sh
+  ```
+- Tell them: "All set — TypeScript + Next.js is installed. You've got a running app at localhost:3015."
+- **Skip Question 2 through Question 3 below** — jump straight to Phase 4.5 (Verify Setup) with a reduced checklist (runtime, database, and Anthropic key).
+
+If they pick **"Let me choose"**, or picked scale 2 or 3, continue with the full interview below.
+
 ### Question 2: Auth Model
 
 Ask:
@@ -132,6 +150,51 @@ Record their answer as `authMode`:
 - Choice 2 → `authMode: "better-auth"`
 
 This determines how the build agent implements authentication. Save it to `ralph-config.json`.
+
+### Question 2.5: Language
+
+If the user didn't take the beginner fast track, ask about their preferred language:
+
+> "What language do you want to build in?
+> 1. **TypeScript** — most templates available, best for web apps (Next.js, Express, Fastify)
+> 2. **Go** — great for APIs and backend services (chi, echo)
+> 3. **Python** — good for data-heavy or AI products (FastAPI, Django)
+> 4. **Rust** — for performance-critical services (Axum, Actix)
+> 5. **Other** — tell me what you want"
+
+Record as `language` in ralph-config.json. Default to `"typescript"` if unsure.
+
+### Question 2.6: Stack Profile
+
+> "Based on what I found about [target product], I'd recommend the **[profile]** setup. Here's why: [one sentence].
+>
+> But you can override — which fits best?
+> 1. **API service** — the target is mainly an API (like Stripe, Twilio, Resend)
+> 2. **Dashboard app** — it's a web app with a UI (like analytics, admin panels, CRM)
+> 3. **Platform** — it's infrastructure (like Vercel, Railway, Supabase)
+> 4. **Content app** — content-focused (like a CMS, docs site, blog platform)
+> 5. **Real-time app** — live features (like chat, collaboration, live dashboards)"
+
+Record as `stackProfile` in ralph-config.json.
+
+### Question 2.7: Frontend (if backend-only language)
+
+If `language` is not `typescript` (e.g., Go, Python, Rust), and the target product has a UI, ask:
+
+> "Since [target] has a web UI, what do you want for the frontend?
+> 1. **Next.js** — React-based, most popular
+> 2. **None** — API-only, no frontend needed
+> 3. **Other** — tell me what you want"
+
+Record as `frontend` in ralph-config.json. If the language is `typescript`, skip this — the frontend framework is the same as the backend.
+
+After collecting language + stackProfile (+ frontend if applicable), write `ralph-config.json` and run setup:
+
+```bash
+bash .claude/skills/ralph-to-ralph-onboard/scripts/setup-stack.sh
+```
+
+The setup script reads `ralph-config.json`, picks the right template from `templates/`, copies config files, appends Makefile targets, and installs dependencies. If no template exists for the chosen combination, tell the user the build agent will scaffold it during the first build iteration.
 
 ### Question 3: Existing CLI / Account Setup
 
@@ -388,6 +451,7 @@ If Ever CLI is required but not installed, show the install message before launc
 - **Very broad product** (e.g. "clone Notion"): commit to building all of it, set expectations on iteration count.
 - **Non-SaaS product**: explain this is designed for web SaaS, suggest a pivot.
 - **Research fails** (obscure or login-walled): work with what you can find, flag gaps, ask user to fill them in.
-- **Non-technical user**: skip package names. Say "I'll set up the email service" not "I'll install @aws-sdk/client-sesv2".
+- **Non-technical user**: skip package names. Say "I'll set up the email service" not "I'll install @aws-sdk/client-sesv2". Default to the beginner fast track (TypeScript + Next.js) unless they specifically ask for something else.
+- **Beginner who picked "simple"**: after running `scripts/setup-stack.sh`, verify it worked by checking `.ralph-setup-done` exists and the Makefile has real targets appended. If it fails, diagnose and fix manually.
 - **User already has everything set up**: Phase 4.5 verifies everything passes, Phase 5 becomes a one-liner "You're all set — everything's verified and ready." Skip straight to the summary.
 - **User wants to set up missing services mid-interview**: let them. Wait, then continue where you left off.

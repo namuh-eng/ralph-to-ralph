@@ -25,11 +25,9 @@
       "test-results",
       "playwright-report",
       "*.config.js",
-      "postcss.config.js",
       "coverage",
       ".omc",
       ".omx",
-      "drizzle",
       "*.d.ts",
       "public"
     ]
