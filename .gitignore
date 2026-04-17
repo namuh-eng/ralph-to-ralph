@@ -10,7 +10,7 @@ test-results/
 playwright-report/
 drizzle/
 packages/sdk/dist/
-target-docs/
+target-docs*/
 .current-feature.json
 tsconfig.tsbuildinfo
 

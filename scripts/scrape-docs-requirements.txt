@@ -4,3 +4,4 @@
 scrapling==0.2.99
 trafilatura==1.12.2
 lxml==5.3.0
+defusedxml==0.7.1

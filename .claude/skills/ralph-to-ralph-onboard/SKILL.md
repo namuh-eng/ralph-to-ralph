@@ -54,6 +54,18 @@ If they seem unsure, help them narrow it down: "Are you thinking of the whole pr
 
 Use WebSearch and WebFetch to learn about the target. Do this silently before asking any more questions — come back informed.
 
+### 2a: Locate the Documentation
+
+Before deep research, find where the product's docs actually live. They're often on a different subdomain:
+
+1. **Web search** for `"{product name}" developer documentation` or `"{product name}" API docs`
+2. **Probe common subdomains**: `docs.{domain}`, `developer.{domain}`, `developers.{domain}`
+3. **Check** `{url}/docs`, `{url}/documentation`, `{url}/llms.txt`
+
+If you find docs on a different subdomain (e.g. `docs.stripe.com` for `stripe.com`), note it — you'll save it as `docsUrl` in `ralph-config.json` during Phase 7. The doc scraper in the inspect phase uses this to target the correct site directly.
+
+### 2b: Research
+
 Look for:
 - **What it does** — the one-sentence pitch
 - **Core features** — the top 5-8 things users actually do in the product
@@ -62,8 +74,8 @@ Look for:
 - **Scale signals** — indie tool or massive platform?
 
 Good sources in order:
-1. `{url}/llms.txt` — LLM-optimized docs if they exist
-2. Their main docs site
+1. `{docsUrl or url}/llms.txt` — LLM-optimized docs if they exist
+2. Their main docs site (use the discovered docs URL)
 3. Their engineering/tech blog
 4. StackShare profile (`stackshare.io/{name}`)
 5. GitHub org (if open source)
@@ -76,6 +88,12 @@ Good sources in order:
 Present what you found before asking anything else.
 
 **What this is:** [1-2 sentence plain English description]
+
+**Documentation:** [discovered docs URL, e.g. "I found their docs at docs.stripe.com"]
+- If the docs URL differs from the target URL, confirm with the user:
+  > "Their developer docs live at `docs.stripe.com` — I'll use this for the doc scraper. Sound right?"
+- If the user corrects it, use their URL instead.
+- Save the confirmed URL as `docsUrl` in `ralph-config.json` during Phase 7.
 
 **Features this clone will have:**
 - [list every meaningful feature — the build loop will implement them all]

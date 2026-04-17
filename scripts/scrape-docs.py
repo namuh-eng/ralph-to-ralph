@@ -31,10 +31,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import posixpath
 import re
 import sys
 import time
-import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -64,6 +64,19 @@ except Exception as exc:  # pragma: no cover - environment guard
     )
     raise SystemExit(3)
 
+# defusedxml protects against billion-laughs / quadratic-blowup entity expansion
+# in sitemap.xml files from untrusted doc sites. The stdlib xml.etree parser
+# expands internal entities by default and can be DoS'd with a crafted sitemap.
+try:
+    import defusedxml.ElementTree as ET  # type: ignore
+except Exception as exc:  # pragma: no cover - environment guard
+    sys.stderr.write(
+        "ERROR: failed to import defusedxml. See "
+        "scripts/scrape-docs-requirements.txt\n"
+        f"Underlying error: {exc}\n"
+    )
+    raise SystemExit(3)
+
 # ``requests`` ships as a transitive dep of Scrapling. We use it directly for
 # manifest probes (llms.txt, mint.json, openapi.json, sitemap.xml) because
 # Scrapling's ``Fetcher.get`` always parses responses as HTML and wraps plain
@@ -74,6 +87,7 @@ import requests  # type: ignore
 # --- Constants -----------------------------------------------------------------
 
 MIN_CONTENT_CHARS = 200
+MIN_MARKDOWN_CHARS = 300
 RATE_LIMIT_MARKERS = ("rate limit", "too many requests", "429 too many")
 DEFAULT_MIN_PAGES = 20
 DEFAULT_CONCURRENCY = 8
@@ -111,6 +125,15 @@ DOC_PATH_HINTS = (
 )
 
 API_REFERENCE_HINTS = ("/api", "/reference", "/api-reference", "/sdk")
+
+# Common doc subdomains. When the user provides ``https://stripe.com``, the
+# actual developer docs may live at ``docs.stripe.com``. We probe these
+# before running the main discovery ladder.
+DOC_SUBDOMAIN_PREFIXES = ("docs", "developer", "developers")
+
+# Locale-prefix regex: matches ``/nl/``, ``/en-es/``, ``/fr-lu/``, etc.
+# Used to filter out localized marketing pages in the BFS crawl.
+_LOCALE_PREFIX_RE = re.compile(r"^/[a-z]{2}(-[a-z]{2})?(/|$)", re.IGNORECASE)
 
 LINK_HREF_RE = re.compile(r'href\s*=\s*["\']([^"\'#]+)["\']', re.IGNORECASE)
 
@@ -159,7 +182,8 @@ def normalize_url(url: str) -> str:
 
 
 def same_host(a: str, b: str) -> bool:
-    return urlparse(a).netloc == urlparse(b).netloc
+    pa, pb = urlparse(a), urlparse(b)
+    return pa.scheme == pb.scheme and pa.netloc == pb.netloc
 
 
 def looks_like_doc_url(url: str) -> bool:
@@ -176,13 +200,38 @@ def _is_plain_text_url(url: str) -> bool:
     return path.endswith(_PLAIN_TEXT_EXTS)
 
 
+def _is_locale_prefixed(url: str) -> bool:
+    """Return True if the URL path starts with a locale prefix like ``/nl/``
+    or ``/en-es/`` and does NOT also contain ``/docs/``. This filters out
+    localized marketing pages (``stripe.com/nl/guides``) that slip through
+    ``DOC_PATH_HINTS`` while preserving genuine locale-prefixed doc URLs
+    (``docs.example.com/ja/api``).
+    """
+    path = urlparse(url).path or ""
+    if not _LOCALE_PREFIX_RE.match(path):
+        return False
+    # If the path also contains /docs/ it's likely a real doc page
+    return "/docs/" not in path.lower() and "/docs" != path.lower().rstrip("/")
+
+
 def url_to_rel_path(url: str) -> str:
-    """Map a URL to a filesystem-safe ``.md`` path under ``target-docs/``."""
+    """Map a URL to a filesystem-safe ``.md`` path under ``target-docs/``.
+
+    Defensive against path traversal: ``..`` segments in the URL path are
+    dropped (not escaped), so a crafted ``Source:`` URL in an upstream
+    ``llms-full.txt`` cannot write outside the output directory.
+    """
     parsed = urlparse(url)
     path = parsed.path or "/"
     if path.endswith("/"):
         path = path + "index"
-    path = path.lstrip("/")
+    # Collapse ``.`` / ``..`` segments, then drop any remaining ``..``
+    # that posixpath.normpath leaves at the start (e.g. ``/../x`` -> ``/../x``
+    # on absolute input, normalized to ``/x``, but relative-style ``../x``
+    # would survive — strip those explicitly).
+    path = posixpath.normpath(path)
+    parts = [p for p in path.split("/") if p and p != ".." and p != "."]
+    path = "/".join(parts)
     path = re.sub(r"\.(html?|php|aspx?)$", "", path, flags=re.IGNORECASE)
     # Strip trailing ``.md`` / ``.txt`` so we don't end up with ``foo.md.md``
     # when the source URL already advertises raw markdown / text.
@@ -330,6 +379,51 @@ def fetch_text(url: str) -> str | None:
 # --- Discovery sources ---------------------------------------------------------
 
 
+def discover_doc_subdomain(base_url: str) -> str | None:
+    """Probe common doc subdomains and return the best one if it has content.
+
+    Many SaaS products host their developer docs on a subdomain
+    (``docs.stripe.com``, ``developer.mozilla.org``). When the user provides
+    the main domain (``https://stripe.com``), we'd miss the real docs entirely
+    because ``same_host`` blocks cross-subdomain discovery.
+
+    We probe each candidate for ``llms-full.txt``, ``llms.txt``, and
+    ``sitemap.xml``. The first candidate that returns any of these becomes
+    the effective base URL for the rest of the pipeline.
+    """
+    parsed = urlparse(base_url)
+    domain = parsed.netloc
+    # Skip if the URL already has a doc-subdomain prefix
+    for prefix in DOC_SUBDOMAIN_PREFIXES:
+        if domain.startswith(f"{prefix}."):
+            return None
+    for prefix in DOC_SUBDOMAIN_PREFIXES:
+        candidate = f"{parsed.scheme}://{prefix}.{domain}"
+        for probe_path in ("llms-full.txt", "llms.txt", "sitemap.xml"):
+            probe_url = f"{candidate}/{probe_path}"
+            try:
+                r = requests.get(
+                    probe_url,
+                    timeout=8,
+                    allow_redirects=True,
+                    headers={
+                        "User-Agent": (
+                            "Mozilla/5.0 (compatible; ralph-to-ralph-scraper/1.0; "
+                            "+https://github.com/anthropics/claude-code)"
+                        ),
+                    },
+                )
+            except Exception:
+                break  # subdomain likely doesn't exist, skip remaining probes
+            if r.status_code < 400 and len(r.text) > 500:
+                log(
+                    f"  doc subdomain discovered: {candidate} "
+                    f"(via {probe_path}, {len(r.text)} bytes)"
+                )
+                return candidate
+    return None
+
+
 def discover_llms_full(base_url: str) -> str | None:
     """Return the URL of an llms-full.txt if one exists."""
     candidates = [
@@ -355,9 +449,18 @@ def discover_llms_txt(base_url: str) -> list[str]:
         if not text:
             continue
         urls: list[str] = []
-        # llms.txt is markdown; we extract any http(s) URL we see.
-        for match in re.finditer(r"https?://[^\s\)\]<>\"']+", text):
-            href = match.group(0).rstrip(".,;)")
+        # llms.txt is markdown. Extract URLs from both bare form
+        # (``https://example.com/foo``) and angle-bracket form
+        # (``<https://example.com/foo>``), which is the CommonMark
+        # autolink syntax and is valid in llms.txt.
+        seen_in_file: set[str] = set()
+        for match in re.finditer(
+            r"<(https?://[^>\s]+)>|(https?://[^\s\)\]<>\"']+)", text
+        ):
+            href = (match.group(1) or match.group(2)).rstrip(".,;)")
+            if not href or href in seen_in_file:
+                continue
+            seen_in_file.add(href)
             if same_host(href, base_url):
                 urls.append(normalize_url(href))
         if urls:
@@ -451,6 +554,12 @@ def discover_sitemap(base_url: str) -> list[str]:
         text = fetch_text(sm_url)
         if not text or "<" not in text:
             continue
+        # 10MB hard cap before parsing — defusedxml stops entity expansion,
+        # but a legitimate sitemap that's tens of MB still wastes RAM and
+        # almost certainly includes mostly non-doc URLs we'd filter anyway.
+        if len(text) > 10_000_000:
+            log(f"  sitemap {sm_url} too large ({len(text)} bytes), skipping")
+            continue
         try:
             root = ET.fromstring(text)
         except ET.ParseError:
@@ -527,6 +636,8 @@ def crawl_from_seed(
                         continue
                     if not looks_like_doc_url(href):
                         continue
+                    if _is_locale_prefixed(href):
+                        continue
                     seen.add(href)
                     next_level.append(href)
         current_level = next_level[: max(0, max_pages - len(found))]
@@ -576,9 +687,24 @@ def html_to_markdown(html: str, url: str) -> str:
     return md or ""
 
 
-def write_page(out_dir: Path, url: str, markdown: str) -> FetchedPage:
+def write_page(
+    out_dir: Path,
+    url: str,
+    markdown: str,
+    fetcher: str = "",
+) -> FetchedPage:
     rel_path = url_to_rel_path(url)
-    target = out_dir / rel_path
+    # Defense-in-depth path confinement: even if ``url_to_rel_path`` is ever
+    # relaxed or misused, refuse to write outside ``out_dir``. This guards
+    # against crafted ``Source:`` URLs in untrusted ``llms-full.txt`` dumps.
+    out_root = out_dir.resolve()
+    target = (out_dir / rel_path).resolve()
+    try:
+        target.relative_to(out_root)
+    except ValueError as exc:
+        raise ValueError(
+            f"refusing to write outside out_dir: url={url!r} target={target}"
+        ) from exc
     target.parent.mkdir(parents=True, exist_ok=True)
     body = f"<!-- Source: {url} -->\n\n{markdown.strip()}\n"
     target.write_text(body, encoding="utf-8")
@@ -586,7 +712,7 @@ def write_page(out_dir: Path, url: str, markdown: str) -> FetchedPage:
         url=url,
         rel_path=rel_path,
         markdown=markdown,
-        fetcher="",
+        fetcher=fetcher,
         bytes_in=len(body.encode("utf-8")),
     )
 
@@ -628,7 +754,10 @@ def split_llms_full_dump(text: str) -> list[tuple[str, str, str]]:
     sections: list[tuple[str, str, str]] = []
     for i, m in enumerate(matches):
         title = m.group("title").strip()
-        url = m.group("url").strip()
+        # ``\S+`` in the boundary regex greedily absorbs trailing sentence
+        # punctuation; strip it so we don't produce filenames like
+        # ``page_.md`` from a ``Source: https://x/page.`` line.
+        url = m.group("url").strip().rstrip(".,;:")
         start = m.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         body = text[start:end].strip()
@@ -660,6 +789,10 @@ def coverage_check(
     openapi_path: str | None = None,
 ) -> tuple[bool, dict]:
     has_openapi = openapi_path is not None
+    # ``has_api_reference`` is informational only — it surfaces in coverage.json
+    # so the inspect prompts can decide whether to spend extra effort on the
+    # API reference, but it does NOT gate ``passed``. Bumping it to a gate
+    # would bias against products without a /api or /reference URL convention.
     has_api_reference = has_openapi or any(
         any(hint in page.url.lower() or hint in page.rel_path.lower() for hint in API_REFERENCE_HINTS)
         for page in pages
@@ -675,10 +808,13 @@ def coverage_check(
     enough_pages = len(pages) >= min_pages
     full_dump = any(p.rel_path == "full-docs.md" for p in pages)
     # Trust any single huge page as a "dump" (e.g. Supabase ships its full
-    # JS reference as one ~1MB ``llms/js.txt`` file). With several of these
-    # plus an OpenAPI spec we have plenty for the build phase, even though
-    # the raw page count is below the default gate.
-    huge_dump = any(p.bytes_in >= HUGE_DUMP_BYTES for p in pages)
+    # JS reference as one ~1MB ``llms/js.txt`` file). Restrict the bypass
+    # to pages sourced from plain-text/markdown URLs so a single bloated
+    # HTML marketing page can't trivially game the gate.
+    huge_dump = any(
+        p.bytes_in >= HUGE_DUMP_BYTES and _is_plain_text_url(p.url)
+        for p in pages
+    )
     summary["has_huge_dump"] = huge_dump
     # If we got llms-full.txt we trust it without the page count requirement.
     ok = enough_pages or full_dump or huge_dump
@@ -696,6 +832,70 @@ def coverage_check(
 # --- Pipeline orchestration ----------------------------------------------------
 
 
+def _delete_orphan_files(out_dir: Path, pages: list[FetchedPage]) -> None:
+    """Remove files written by a ladder stage that didn't meet the threshold.
+
+    Without this cleanup, a falling-through stage leaves valid-looking ``.md``
+    files in ``out_dir``. The next stage's ``write_page`` calls would land
+    alongside them and the inspect agent would see both — confusing because
+    the orphan files aren't in ``INDEX.md``.
+    """
+    for page in pages:
+        path = (out_dir / page.rel_path).resolve()
+        try:
+            path.relative_to(out_dir.resolve())
+        except ValueError:
+            continue
+        if path.exists() and path.is_file():
+            try:
+                path.unlink()
+            except OSError as exc:
+                log(f"  warn: could not remove orphan {path}: {exc}")
+
+
+def _run_url_list_stage(
+    name: str,
+    urls: list[str],
+    out_dir: Path,
+    max_pages: int,
+    concurrency: int,
+    min_pages: int,
+    result: ScrapeResult,
+) -> bool:
+    """Fetch a flat URL list, write pages, and decide whether to accept the
+    stage. Returns ``True`` if the stage met the page threshold (caller should
+    return). Returns ``False`` if the stage fell through; in that case the
+    orphan files have already been cleaned and ``result.pages`` /
+    ``result.failures`` are reset.
+    """
+    successes, failures = fetch_many(urls[:max_pages], concurrency)
+    result.failures.extend(failures)
+    stage_pages: list[FetchedPage] = []
+    for url, html, fetcher_name in successes:
+        md = html_to_markdown(html, url)
+        if not md:
+            result.failures.append((url, "trafilatura returned empty"))
+            continue
+        if len(md) < MIN_MARKDOWN_CHARS:
+            result.failures.append((url, f"extracted markdown too short ({len(md)} chars)"))
+            continue
+        try:
+            page = write_page(out_dir, url, md, fetcher=fetcher_name)
+        except ValueError as exc:
+            result.failures.append((url, f"write refused: {exc}"))
+            continue
+        stage_pages.append(page)
+    result.pages.extend(stage_pages)
+    if len(result.pages) >= min(min_pages, 5):
+        result.discovery = name
+        return True
+    log(f"  {name} yielded only {len(result.pages)} pages, falling through")
+    _delete_orphan_files(out_dir, stage_pages)
+    result.pages.clear()
+    result.failures.clear()
+    return False
+
+
 def run_pipeline(
     base_url: str,
     out_dir: Path,
@@ -706,7 +906,23 @@ def run_pipeline(
     out_dir.mkdir(parents=True, exist_ok=True)
     result = ScrapeResult()
 
+    # Auto-discover doc subdomains: many SaaS products host docs on a separate
+    # subdomain (docs.stripe.com, developer.mozilla.org). If the user gave the
+    # main domain, check common doc subdomains first and switch if one has
+    # content. This is the difference between 235 marketing pages and 473 real
+    # API docs for Stripe.
+    doc_sub = discover_doc_subdomain(base_url)
+    if doc_sub:
+        log(f"  switching base_url from {base_url} to {doc_sub}")
+        base_url = doc_sub
+
     # OpenAPI is additive: save if found, regardless of which discovery wins.
+    # Remove any stale spec from a previous failed run so a re-run with
+    # ``--force`` doesn't end up with two openapi.* files on disk.
+    for ext in ("json", "yaml", "yml"):
+        stale = out_dir / f"openapi.{ext}"
+        if stale.exists():
+            stale.unlink()
     openapi_path = discover_openapi(base_url, out_dir)
     if openapi_path:
         log(f"  openapi spec written: {openapi_path}")
@@ -727,7 +943,11 @@ def run_pipeline(
                 log(f"  split llms-full.txt into {len(sections)} per-page files")
                 for url, title, body in sections:
                     md = f"# {title}\n\n{body}"
-                    page = write_page(out_dir, url, md)
+                    try:
+                        page = write_page(out_dir, url, md, fetcher="requests")
+                    except ValueError as exc:
+                        result.failures.append((url, f"write refused: {exc}"))
+                        continue
                     result.pages.append(page)
                 result.discovery = "llms-full.txt (split)"
                 return result
@@ -748,62 +968,26 @@ def run_pipeline(
     # 2. llms.txt
     llms_urls = discover_llms_txt(base_url)
     if llms_urls and len(llms_urls) >= 5:
-        successes, failures = fetch_many(llms_urls[:max_pages], concurrency)
-        result.failures.extend(failures)
-        for url, html, fetcher_name in successes:
-            md = html_to_markdown(html, url)
-            if not md:
-                result.failures.append((url, "trafilatura returned empty"))
-                continue
-            page = write_page(out_dir, url, md)
-            page.fetcher = fetcher_name
-            result.pages.append(page)
-        if len(result.pages) >= min(min_pages, 5):
-            result.discovery = "llms.txt"
+        if _run_url_list_stage(
+            "llms.txt", llms_urls, out_dir, max_pages, concurrency, min_pages, result
+        ):
             return result
-        log(f"  llms.txt yielded only {len(result.pages)} pages, falling through")
-        result.pages.clear()
-        result.failures.clear()
 
     # 3. mint.json
     mint_urls = discover_mint_json(base_url)
     if mint_urls and len(mint_urls) >= 5:
-        successes, failures = fetch_many(mint_urls[:max_pages], concurrency)
-        result.failures.extend(failures)
-        for url, html, fetcher_name in successes:
-            md = html_to_markdown(html, url)
-            if not md:
-                result.failures.append((url, "trafilatura returned empty"))
-                continue
-            page = write_page(out_dir, url, md)
-            page.fetcher = fetcher_name
-            result.pages.append(page)
-        if len(result.pages) >= min(min_pages, 5):
-            result.discovery = "mint.json"
+        if _run_url_list_stage(
+            "mint.json", mint_urls, out_dir, max_pages, concurrency, min_pages, result
+        ):
             return result
-        log(f"  mint.json yielded only {len(result.pages)} pages, falling through")
-        result.pages.clear()
-        result.failures.clear()
 
     # 4. sitemap.xml
     sitemap_urls = discover_sitemap(base_url)
     if sitemap_urls and len(sitemap_urls) >= 5:
-        successes, failures = fetch_many(sitemap_urls[:max_pages], concurrency)
-        result.failures.extend(failures)
-        for url, html, fetcher_name in successes:
-            md = html_to_markdown(html, url)
-            if not md:
-                result.failures.append((url, "trafilatura returned empty"))
-                continue
-            page = write_page(out_dir, url, md)
-            page.fetcher = fetcher_name
-            result.pages.append(page)
-        if len(result.pages) >= min(min_pages, 5):
-            result.discovery = "sitemap.xml"
+        if _run_url_list_stage(
+            "sitemap.xml", sitemap_urls, out_dir, max_pages, concurrency, min_pages, result
+        ):
             return result
-        log(f"  sitemap.xml yielded only {len(result.pages)} pages, falling through")
-        result.pages.clear()
-        result.failures.clear()
 
     # 5. crawl
     seed_candidates = [
@@ -821,17 +1005,28 @@ def run_pipeline(
         )
         if not crawled:
             continue
+        seed_pages: list[FetchedPage] = []
         for url, html, fetcher_name in crawled:
             md = html_to_markdown(html, url)
             if not md:
                 result.failures.append((url, "trafilatura returned empty"))
                 continue
-            page = write_page(out_dir, url, md)
-            page.fetcher = fetcher_name
-            result.pages.append(page)
+            if len(md) < MIN_MARKDOWN_CHARS:
+                result.failures.append((url, f"extracted markdown too short ({len(md)} chars)"))
+                continue
+            try:
+                page = write_page(out_dir, url, md, fetcher=fetcher_name)
+            except ValueError as exc:
+                result.failures.append((url, f"write refused: {exc}"))
+                continue
+            seed_pages.append(page)
+        result.pages.extend(seed_pages)
         if result.pages:
             result.discovery = f"crawl({seed})"
             return result
+        # Seed yielded crawled HTML but trafilatura extracted nothing usable —
+        # clean the empty/orphan files before trying the next seed.
+        _delete_orphan_files(out_dir, seed_pages)
 
     return result
 
@@ -844,6 +1039,11 @@ def parse_args() -> argparse.Namespace:
         description="Deterministic doc scraper for the ralph-to-ralph inspect phase",
     )
     p.add_argument("url", help="Target product base URL (e.g. https://resend.com)")
+    p.add_argument(
+        "--docs-url",
+        default=None,
+        help="Explicit docs URL (e.g. https://docs.stripe.com). Skips subdomain probing.",
+    )
     p.add_argument(
         "--out",
         default="target-docs",
@@ -877,7 +1077,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    base_url = args.url.rstrip("/")
+    # --docs-url overrides the positional URL for doc discovery. The positional
+    # URL is still used as the "target" label in logs/coverage, but all fetching
+    # uses the docs URL. This lets onboarding pin the docs location
+    # (e.g. docs.stripe.com) independently of the product URL (stripe.com).
+    base_url = (args.docs_url or args.url).rstrip("/")
     out_dir = Path(args.out)
     coverage_path = out_dir / "coverage.json"
 
@@ -886,10 +1090,19 @@ def main() -> int:
             existing = json.loads(coverage_path.read_text())
         except json.JSONDecodeError:
             existing = None
-        if isinstance(existing, dict) and existing.get("passed"):
+        # Don't trust coverage.json alone — also verify INDEX.md is on disk.
+        # Otherwise a user who deleted target-docs/*.md but left coverage.json
+        # would silently start the inspect loop with an empty corpus.
+        index_present = (out_dir / "INDEX.md").exists()
+        if isinstance(existing, dict) and existing.get("passed") and index_present:
             log(f"coverage already satisfied at {coverage_path}, skipping scrape")
             log("(pass --force to re-scrape)")
             return 0
+        if isinstance(existing, dict) and existing.get("passed") and not index_present:
+            log(
+                f"coverage.json says passed but {out_dir / 'INDEX.md'} is missing"
+                " — re-scraping"
+            )
 
     started = time.time()
     log(f"target = {base_url}")

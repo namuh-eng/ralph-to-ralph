@@ -32,10 +32,14 @@ Run `bash scripts/preflight.sh` before starting the loop. It creates:
 ## Doc Scraper (Phase 1 only — auto-installed)
 The inspect loop calls `scripts/scrape-docs.py` once before iteration 1 to populate `target-docs/` with the target product's documentation. The first time you run `./ralph/inspect-ralph.sh`, it will:
 1. Create `.venv-scrape/` (Python venv, gitignored, **NOT** part of the generated clone)
-2. `pip install -r scripts/scrape-docs-requirements.txt` (Scrapling + trafilatura)
-3. Run the scraper and write `target-docs/` + `target-docs/coverage.json`
+2. `pip install -r scripts/scrape-docs-requirements.txt` (Scrapling + trafilatura + defusedxml)
+3. Pre-fetch Playwright Chromium and Camoufox so JS-rendered / Cloudflare-protected doc sites work (warnings only if the download fails — static-HTML doc sites still scrape via plain HTTP)
+4. Run the scraper and write `target-docs/` + `target-docs/coverage.json`
+5. Touch `.venv-scrape/.install-complete` as a sentinel — a partial install (network drop, ^C) is detected and the venv is recreated on the next run
 
-If the coverage gate fails the inspect loop hard-stops — fix the target URL or re-run with `--force`. The venv only exists in the cloning workspace; the generated clone never depends on Python.
+The skip guard requires both `coverage.json` AND `target-docs/INDEX.md` to be present before reusing the cached scrape. Delete either to force a re-scrape, or pass `--force` to `scrape-docs.py`.
+
+If the scraper fails the inspect loop hard-stops with an exit-code-aware error message (gate failure, no docs discovered, dependency error). The venv only exists in the cloning workspace; the generated clone never depends on Python.
 
 **Requirement:** `python3` (3.10+) on PATH. Default on macOS/Linux.
 

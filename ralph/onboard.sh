@@ -270,6 +270,69 @@ if ! [[ "$CLONE_NAME" =~ ^[a-zA-Z0-9._-]+$ ]]; then
   exit 1
 fi
 
+# ── Discover docs URL ──
+# The product's docs often live on a different subdomain (docs.stripe.com vs stripe.com).
+# Probe common doc subdomains so the scraper targets the right place.
+_BASE_DOMAIN=$(echo "$TARGET_URL" | sed -E 's|https?://||;s|www\.||;s|/.*||;s|:[0-9]+||')
+# Strip subdomain prefixes to get the registrable domain (e.g. app.posthog.com → posthog.com)
+_REG_DOMAIN=$(echo "$_BASE_DOMAIN" | awk -F. '{if(NF>=2) print $(NF-1)"."$NF; else print $0}')
+echo ""
+echo "--- Locating documentation ---"
+_DOC_CANDIDATES=()
+for _prefix in docs developer developers; do
+  _probe="https://${_prefix}.${_REG_DOMAIN}"
+  if curl -sI --max-time 5 "$_probe" 2>/dev/null | head -1 | grep -qE "HTTP/[0-9.]+ [23]"; then
+    _DOC_CANDIDATES+=("$_probe")
+    echo "  Found: $_probe"
+  fi
+done
+# Also check /docs path on the target itself
+_docs_path="${TARGET_URL%/}/docs"
+if curl -sI --max-time 5 "$_docs_path" 2>/dev/null | head -1 | grep -qE "HTTP/[0-9.]+ [23]"; then
+  _DOC_CANDIDATES+=("$_docs_path")
+  echo "  Found: $_docs_path"
+fi
+
+DOCS_URL=""
+if [ ${#_DOC_CANDIDATES[@]} -gt 0 ]; then
+  echo ""
+  echo "Documentation URL candidates:"
+  for _idx in "${!_DOC_CANDIDATES[@]}"; do
+    echo "  $((_idx + 1))) ${_DOC_CANDIDATES[$_idx]}"
+  done
+  echo "  $((${#_DOC_CANDIDATES[@]} + 1))) None of these / enter manually"
+  echo "  $((${#_DOC_CANDIDATES[@]} + 2))) Skip (auto-discover during scrape)"
+  echo ""
+  read -rp "Which docs URL? [1]: " _DOCS_CHOICE
+  _DOCS_CHOICE="${_DOCS_CHOICE:-1}"
+  if [[ "$_DOCS_CHOICE" =~ ^[0-9]+$ ]]; then
+    if [ "$_DOCS_CHOICE" -ge 1 ] && [ "$_DOCS_CHOICE" -le ${#_DOC_CANDIDATES[@]} ]; then
+      DOCS_URL="${_DOC_CANDIDATES[$((_DOCS_CHOICE - 1))]}"
+    elif [ "$_DOCS_CHOICE" -eq $((${#_DOC_CANDIDATES[@]} + 1)) ]; then
+      read -rp "Enter the docs URL: " DOCS_URL
+    fi
+  fi
+else
+  echo "  No common doc subdomains found."
+  echo ""
+  echo "  1) Enter docs URL manually"
+  echo "  2) Skip (auto-discover during scrape)"
+  echo ""
+  read -rp "Choose [2]: " _DOCS_CHOICE
+  if [[ "${_DOCS_CHOICE:-2}" == "1" ]]; then
+    read -rp "Enter the docs URL: " DOCS_URL
+  fi
+fi
+
+if [ -n "$DOCS_URL" ]; then
+  if ! [[ "$DOCS_URL" =~ ^https?:// ]]; then
+    DOCS_URL="https://$DOCS_URL"
+  fi
+  echo "Docs URL: $DOCS_URL"
+else
+  echo "Docs URL: (auto-discover during scrape)"
+fi
+
 echo ""
 echo "Where should this clone run?"
 echo ""
@@ -597,11 +660,15 @@ fi
   printf 'AUTH_MODE=%q\n'        "$AUTH_MODE"
   printf 'BROWSER_AGENT=%q\n'    "$BROWSER_AGENT"
   printf 'BROWSER_AGENT_DESC=%q\n' "$BROWSER_AGENT_DESC"
+  printf 'DOCS_URL=%q\n'         "${DOCS_URL:-}"
 } > .onboard-answers.tmp
 
 echo ""
 echo "--- Summary ---"
 echo "Target:    $TARGET_URL"
+if [ -n "${DOCS_URL:-}" ]; then
+  echo "Docs URL:  $DOCS_URL"
+fi
 echo "Clone:     $CLONE_NAME"
 echo "Cloud:     $CLOUD_PROVIDER"
 echo "Framework: Next.js 16 (default)"
@@ -651,6 +718,7 @@ The user has already provided their answers:
 - Skip deployment: $SKIP_DEPLOY (if true, do NOT set up deployment infrastructure — only provision database and services needed for local development. If false and cloudProvider is 'vercel', deploy via 'vercel --prod' — no Docker needed. If false and cloudProvider is 'aws'/'gcp'/'azure', build a Docker image and push to the cloud container registry.)
 - Browser agent: $BROWSER_AGENT (ever = Ever CLI for visual inspection; playwright = npx playwright scripted; stagehand = @browserbasehq/stagehand AI agent; custom = $BROWSER_AGENT_DESC). Set this as 'browserAgent' in ralph-config.json.
 - Auth mode: $AUTH_MODE (api-key = personal/solo use, protect all routes with DASHBOARD_KEY bearer token, no login/signup needed; better-auth = multi-user, implement full login/signup with Better Auth + Drizzle adapter). Set this as 'authMode' in ralph-config.json.
+- Docs URL: ${DOCS_URL:-(not set — auto-discover during scrape)}. If set, save as 'docsUrl' in ralph-config.json. The doc scraper will target this URL instead of probing subdomains.
 
 SKIP Steps 1 and 2 (already answered above). Start directly from Step 3 (Technical Architecture Scan).
 Research the target product, generate ralph-config.json, check dependencies, rewrite config files, and install packages.

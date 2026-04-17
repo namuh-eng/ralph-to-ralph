@@ -54,11 +54,19 @@ These values are provided in your prompt context. Use them directly — do NOT a
 
 Research the target product to understand what cloud services the clone will need. This informs your stack recommendation.
 
-### 3a: Read Documentation
-Try these sources in order (skip any that fail):
-1. `{targetUrl}/llms.txt` — LLM-optimized docs
-2. `{targetUrl}/sitemap.xml` — site structure
-3. `{targetUrl}/docs` — docs landing page
+### 3a: Locate & Read Documentation
+First, discover where the product's docs actually live — they're often on a different subdomain:
+1. Probe `docs.{domain}`, `developer.{domain}`, `developers.{domain}` — check if they resolve
+2. Try `{targetUrl}/docs`, `{targetUrl}/documentation`
+3. Check `{targetUrl}/llms.txt` — LLM-optimized docs (may reference the real docs URL)
+4. `{targetUrl}/sitemap.xml` — site structure
+
+If the docs live on a different subdomain (e.g. `docs.stripe.com` for `stripe.com`), set `docsUrl` in `ralph-config.json` so the doc scraper targets it directly during the inspect phase.
+
+Then read the docs:
+1. `{docsUrl or targetUrl}/llms.txt` — LLM-optimized docs
+2. `{docsUrl or targetUrl}/sitemap.xml` — site structure
+3. `{docsUrl or targetUrl}/docs` — docs landing page
 4. Look for links to API reference, SDKs, guides
 
 ### 3b: Analyze API Reference
@@ -130,6 +138,7 @@ Write the file `ralph-config.json` with this exact schema:
   "dbProvider": "neon",
   "skipDeploy": false,
   "authMode": "api-key",
+  "docsUrl": "https://docs.example.com",
   "browserAgent": "ever",
   "services": {
     "email": { "provider": "ses", "package": "@aws-sdk/client-sesv2" },
@@ -174,6 +183,7 @@ The `setup` section is optional for backwards compatibility — older configs wi
 **Required fields:** `targetUrl`, `targetName`, `cloudProvider`, `framework`, `database`.
 **Valid cloudProvider values:** `vercel`, `aws`, `gcp`, `azure`, `custom`.
 **Valid deploymentTier values:** `personal`, `team`.
+- `docsUrl`: (optional) canonical documentation URL discovered during onboarding (e.g. `https://docs.stripe.com`). When present, the doc scraper targets this URL directly instead of probing subdomains at runtime. Set this during Step 3a if the docs live on a different subdomain than the target URL.
 - `browserAgent`: "ever" | "playwright" | "stagehand" | "custom" — browser agent for inspect and QA phases
 - `testAccount`: `{ "provider": "google", "email": "user@gmail.com" }` — Google account for auth during build/QA testing. The build and QA agents use this to log in via Google OAuth instead of attempting email/magic-link auth (which requires email delivery). Should be the Google account the user's browser is already logged into, so Ever CLI can complete OAuth flows automatically.
 
