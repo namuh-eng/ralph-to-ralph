@@ -27,9 +27,13 @@ The original product is your **source of truth**.
 2. The current feature to test is passed to you directly (you don't need to search prd.json). Note its `category`.
 3. Read `qa-hints.json` for this feature's entry — the build agent logged what it tested and what **needs deeper QA**. Focus on the `needs_deeper_qa` items.
 
-### Step 1: Automated checks
-3. Run `make test` to verify unit tests still pass. Fix any failures before proceeding.
-4. Run smoke E2E: `npx playwright test tests/e2e/smoke.spec.ts`
+---
+
+## SUB-PHASE A: FUNCTIONAL
+
+### Step A1: Automated checks
+Run `make test` to verify unit tests still pass. Fix any failures before proceeding.
+Run smoke E2E: `npx playwright test tests/e2e/smoke.spec.ts`
 
 <important if="your fix touched shared code (layout, API client, auth middleware, routing, reusable components)">
 Also run full `make test-e2e` to catch cross-feature regressions.
@@ -54,18 +58,18 @@ If Google OAuth is too complex for Playwright (it involves third-party redirects
 
 **Do NOT skip this step.** Every E2E test behind an auth wall will fail without it. Do NOT weaken tests by removing auth checks — fix the test infrastructure instead.
 
-### Step 2: Authenticate Before Testing
-5. Start dev server if not running (`npm run dev`).
-6. Open clone in Ever CLI: `ever start --url http://localhost:3015` (reuse existing session if running).
-7. **Check if you're logged in** — navigate to any app page. If redirected to `/login`, authenticate first:
+### Step A2: Authenticate Before Testing
+Start dev server if not running (`make dev`).
+Open clone in Ever CLI: `ever start --url http://localhost:3015` (reuse existing session if running).
+**Check if you're logged in** — navigate to any app page. If redirected to `/login`, authenticate first:
    - Read `TEST_ACCOUNT_EMAIL` from `.env` for the Google account to use. If not set, check `ralph-config.json` for `testAccount.provider`.
    - **Always use Google OAuth** (click "Continue with Google" and select the test account email) unless you are SPECIFICALLY testing email/magic-link auth (e.g. `auth-002`).
    - Do NOT test magic link auth as part of general feature QA — that flow requires email delivery and should only be tested in its own dedicated feature.
    - After logging in, verify the session is active before proceeding with feature tests.
    - If `TEST_ACCOUNT_EMAIL` is not in `.env`, use whichever Google account the browser is already logged into.
 
-### Step 3: Manual Verification (Ever CLI)
-8. Test the feature thoroughly:
+### Step A3: Manual Verification (Ever CLI)
+Test the feature thoroughly:
    - Navigate to the relevant page, `ever snapshot`
    - Follow `steps` from prd.json to verify each acceptance criterion
    - Compare against `ralph/screenshots/inspect/` and `behavior` field
@@ -100,8 +104,8 @@ Verify users/sessions are correctly stored in Postgres via Drizzle.
 </important>
 
 <important if="category is infrastructure, crud, or sdk">
-### Step 3: Real Backend Verification
-8. Verify real infrastructure, not mocks:
+### Step A4: Real Backend Verification
+Verify real infrastructure, not mocks:
    - Test via curl/SDK directly, not just UI
    - Send real email → arrives in inbox?
    - Create domain → SES generates DKIM? Cloudflare gets DNS records?
@@ -109,43 +113,14 @@ Verify users/sessions are correctly stored in Postgres via Drizzle.
 </important>
 
 <important if="category is sdk AND packages/sdk/ exists">
-### Step 4: SDK Verification
-9. Run `cd packages/sdk && npm test`
-10. Test SDK manually: import, call API, verify response
-11. Test React rendering if supported
+### Step A5: SDK Verification
+Run `cd packages/sdk && npm test`
+Test SDK manually: import, call API, verify response
+Test React rendering if supported
 </important>
 
 <important if="this is the deployment feature">
-### Step 5: Deployment Verification
-12. Is the app live? Does the deployed version match localhost?
-13. Test live URL with same curl/SDK commands.
+### Step A6: Deployment Verification
+Is the app live? Does the deployed version match localhost?
+Test live URL with same curl/SDK commands.
 </important>
-
-### Record & Fix
-14. Record findings in `qa-report.json` — **append a NEW entry, never overwrite previous ones**:
-    ```json
-    {
-      "feature_id": "feature-001",
-      "attempt": 1,
-      "status": "pass|fail|partial",
-      "tested_steps": ["step 1 result"],
-      "bugs_found": [{ "severity": "critical|major|minor|cosmetic", "description": "...", "expected": "...", "actual": "...", "reproduction": "..." }],
-      "fix_description": "brief description of what fix was attempted (or 'no fix needed' if passed)"
-    }
-    ```
-    If a `== QA HISTORY ==` section is provided in your prompt, read all previous attempts before deciding your fix strategy — do not repeat an approach that already failed.
-15. If bugs found: fix ALL bugs for this feature, then run `make check && make test` once. Commit together: `git commit -m "QA fix: <feature> — fixed N bugs: <brief list>"`
-16. Update `prd.json` for this feature:
-    - Set `qa_pass: true` if all bugs are fixed and feature works end-to-end.
-    - Set `qa_pass: false` if bugs remain unfixed (so the QA loop retries this feature).
-    - Do NOT touch `build_pass` — that is owned by the build agent.
-17. `git add -A`, detailed commit message, `git push`.
-
-## Rules
-- **HARD STOP: Test exactly ONE feature per invocation.** Commit, push, output promise, stop.
-- Be skeptical. Assume things are broken until proven otherwise.
-- Fix ALL bugs for the feature, then test once before committing.
-- **NEVER weaken or delete tests to make them pass.** Fix the code, not the test.
-- Always update `qa_pass` in `prd.json` before outputting the promise.
-- Output `<promise>NEXT</promise>` after committing if more features remain.
-- Output `<promise>QA_COMPLETE</promise>` only if ALL features are QA tested and all `qa_pass: true`.
