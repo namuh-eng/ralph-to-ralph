@@ -87,10 +87,21 @@ Inspect the target product's authentication system — this is P1 priority for t
   - Product overview and branding (`{productname}-clone`)
   - Complete design system (colors, typography, layout, shared components)
   - All data models with field types
+  - **API Architecture with response examples** — for each API endpoint include: method + path, request body schema (if POST/PATCH), a sample JSON response, error response format, and pagination format (if list endpoint). Example:
+    ```
+    GET /api/teams/{key}/issues?status=in_progress&page=1
+    Response: {
+      "issues": [{ "id": "uuid", "identifier": "ENG-123", "title": "..." }],
+      "total": 42, "page": 1, "pageSize": 50
+    }
+    Error: { "error": "Team not found", "status": 404 }
+    ```
   - **Backend Architecture** — map each feature to the cloud service that powers it (read `ralph-config.json` for the chosen provider)
   - **SDK/DX** — what SDK to build, what developer workflow to support
   - **Deployment** — deployment instructions for the chosen cloud provider (read `ralph-config.json`)
   - **Build Order** — prioritized list, core features first
+  - **Known Constraints** — document things like "Better Auth requires specific table names", "SES requires verified domain", "Google OAuth requires specific redirect URIs configured in Cloud Console". These prevent multi-attempt QA failures.
+  - **Keyboard Shortcuts** (if target is keyboard-first) — complete table of navigation, action, and selection shortcuts discovered during inspection
 
 - **Add `dependent_on` to every PRD entry** — list the IDs of related features that this feature depends on or shares components/data with. This gives the QA agent context about what else might break. Examples:
   - A detail page depends on its list page and the shared data table component
@@ -126,18 +137,28 @@ Inspect the target product's authentication system — this is P1 priority for t
    - P11+: Polish, settings, nice-to-haves
    - Last: Deployment
 
-7. Append new feature entries to `prd.json`. Every entry MUST include `"build_pass": false` and `"qa_pass": false` as initial values:
+7. Append new feature entries to `prd.json`. Every entry MUST include ALL of these fields:
    ```json
    {
      "id": "feature-001",
-     "description": "...",
-     "priority": "P1",
-     "category": "...",
-     "dependent_on": [],
+     "category": "crud",
+     "description": "Clear description of the feature",
+     "page": "/team/{key}/all",
+     "priority": "P3",
+     "core": true,
+     "ui_details": "Table layout with collapsible groups per workflow state. Each row: checkbox, priority icon, identifier (monospace), title (truncated), assignee avatar (24px), label pills, project badge, relative date. Group header: state icon + name + count + 'Add issue' button.",
+     "behavior": "Click row → navigate to detail page. Click 'Add issue' → inline input at group bottom, Enter to create, Escape to cancel. Right-click → context menu. Keyboard: j/k to navigate, Enter to open, x to select.",
+     "data_model": "Reads: issues (with joins to users, labels, projects). Writes: issues (inline create). Filters: status, assignee, label, priority.",
+     "dependent_on": ["layout-001", "infra-001"],
      "build_pass": false,
      "qa_pass": false
    }
    ```
+   **REQUIRED fields per entry:**
+   - `ui_details` — Component types, layout, sizes, colors. The build agent uses this to implement the UI.
+   - `behavior` — What happens on click, submit, error, empty state. The build agent uses this to wire up interactions.
+   - `data_model` — Which tables/fields this feature reads and writes.
+   - Missing any of these = the build agent has to guess = bugs. Fill them ALL in.
 8. Update `build-spec.md` incrementally with what you discovered.
 9. Update `inspect-progress.txt` with what you did.
 10. **Commit and push:**
@@ -152,4 +173,9 @@ Inspect the target product's authentication system — this is P1 priority for t
 - Take screenshots of every page you inspect.
 - Commit and push after every iteration.
 - Output `<promise>NEXT</promise>` after committing if more pages remain.
-- Output `<promise>INSPECT_COMPLETE</promise>` only when ALL pages are inspected AND `build-spec.md` is finalized.
+- Output `<promise>INSPECT_COMPLETE</promise>` only when ALL of the following are true:
+  1. ALL pages are inspected
+  2. `build-spec.md` is finalized (including API response examples and a "Known Constraints" section)
+  3. **PRD validation passes** — every entry in `prd.json` has non-empty `ui_details`, `behavior`, and `data_model` fields. Entries missing these are INCOMPLETE. Go back and fill them in before marking complete.
+  4. **PRD sizing validated** — no entry has more than 5 sections/features in its description. Split large entries (e.g., monolithic settings pages) into focused sub-entries.
+  5. **Keyboard shortcut inventory** — if the target product is keyboard-first (has Cmd+K or extensive shortcuts), include a shortcut table in `build-spec.md` with navigation shortcuts, action shortcuts, and selection shortcuts.

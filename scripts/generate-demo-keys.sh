@@ -7,6 +7,13 @@ COUNT="${1:-20}"
 API_URL="${2:-http://127.0.0.1:3002}"
 MASTER_KEY="${DASHBOARD_KEY:-re_dev_token_123}"
 
+# Resolve Python: prefer `uv run python3` if uv is available, fall back to bare python3
+if command -v uv &>/dev/null; then
+  PY="uv run python3"
+else
+  PY="python3"
+fi
+
 echo "=== Generating $COUNT demo API keys ==="
 echo "API: $API_URL"
 echo ""
@@ -22,7 +29,7 @@ for i in $(seq 1 $COUNT); do
     }).then(r=>r.json()).then(d=>console.log(JSON.stringify(d))).catch(e=>console.error(e))
   " 2>&1)
 
-  TOKEN=$(echo "$RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('token','ERROR'))" 2>/dev/null || echo "ERROR")
+  TOKEN=$(echo "$RESULT" | $PY -c "import json,sys; d=json.load(sys.stdin); print(d.get('token','ERROR'))" 2>/dev/null || echo "ERROR")
 
   if [ "$TOKEN" != "ERROR" ]; then
     echo "$TOKEN,$NAME,full_access"
