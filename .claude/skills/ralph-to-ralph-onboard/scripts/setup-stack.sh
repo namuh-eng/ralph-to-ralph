@@ -92,28 +92,30 @@ if [ -f "${TEMPLATE_DIR}/makefile-targets.mk" ]; then
 fi
 
 # --- 5. Install dependencies ---
+# Do NOT silence stderr — a failed install here leaves the project unbootable
+# and we need the user to see the real error.
 echo "  Installing dependencies..."
 case "$LANGUAGE" in
   typescript|javascript)
-    npm install 2>/dev/null
+    npm install
     # Install Playwright browsers if playwright config exists
     if [ -f playwright.config.ts ]; then
-      npx playwright install chromium 2>/dev/null || true
+      npx playwright install chromium || true
     fi
     ;;
   go)
     if [ -f go.mod ]; then
-      go mod download 2>/dev/null
+      go mod download
     fi
     ;;
   python)
     if [ -f pyproject.toml ]; then
-      pip install -e ".[dev]" 2>/dev/null || pip install -r requirements.txt 2>/dev/null || true
+      pip install -e ".[dev]" || pip install -r requirements.txt || true
     fi
     ;;
   rust)
     if [ -f Cargo.toml ]; then
-      cargo fetch 2>/dev/null || true
+      cargo fetch || true
     fi
     ;;
 esac
