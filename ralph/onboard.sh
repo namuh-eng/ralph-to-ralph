@@ -670,6 +670,12 @@ if [ "$_SKIP_QA" = true ] && [ "$CLOUD_PROVIDER" != "custom" ]; then
   fi
 fi
 
+# The script path is opinionated on the stack template — TypeScript + Next.js.
+# These two fields make the script's ralph-config.json shape match the skill path
+# so setup-stack.sh can pick the right template for both flows.
+LANGUAGE="typescript"
+STACK_PROFILE="dashboard-app"
+
 # Save answers so a Ctrl+C re-run can skip re-entering them
 # Use printf %q to safely escape arbitrary user input (quotes, $(...), backticks)
 {
@@ -684,6 +690,8 @@ fi
   printf 'BROWSER_AGENT=%q\n'    "$BROWSER_AGENT"
   printf 'BROWSER_AGENT_DESC=%q\n' "$BROWSER_AGENT_DESC"
   printf 'DOCS_URL=%q\n'         "${DOCS_URL:-}"
+  printf 'LANGUAGE=%q\n'         "$LANGUAGE"
+  printf 'STACK_PROFILE=%q\n'    "$STACK_PROFILE"
 } > .onboard-answers.tmp
 
 echo ""
@@ -742,9 +750,11 @@ The user has already provided their answers:
 - Browser agent: $BROWSER_AGENT (ever = Ever CLI for visual inspection; playwright = npx playwright scripted; stagehand = @browserbasehq/stagehand AI agent; custom = $BROWSER_AGENT_DESC). Set this as 'browserAgent' in ralph-config.json.
 - Auth mode: $AUTH_MODE (api-key = personal/solo use, protect all routes with DASHBOARD_KEY bearer token, no login/signup needed; better-auth = multi-user, implement full login/signup with Better Auth + Drizzle adapter). Set this as 'authMode' in ralph-config.json.
 - Docs URL: ${DOCS_URL:-(not set — auto-discover during scrape)}. If set, save as 'docsUrl' in ralph-config.json. The doc scraper will target this URL instead of probing subdomains.
+- Language: $LANGUAGE. Set as 'language' in ralph-config.json. This selects the stack template under .claude/skills/ralph-to-ralph-onboard/templates/.
+- Stack profile: $STACK_PROFILE. Set as 'stackProfile' in ralph-config.json.
 
 SKIP Steps 1 and 2 (already answered above). Start directly from Step 3 (Technical Architecture Scan).
-Research the target product, generate ralph-config.json, check dependencies, rewrite config files, and install packages.
+Research the target product, generate ralph-config.json (INCLUDING 'language' and 'stackProfile' — required), and rewrite the provider-specific config files (preflight, pre-setup, CLAUDE.md, inspect-prompt, build-prompt). Do NOT create package.json, tsconfig.json, schema.ts, or run npm install — the wrapper invokes setup-stack.sh afterwards to install the template.
 If cloudProvider is 'custom' and generator is 'claude': also generate scripts/preflight.sh from the custom stack description.
 If cloudProvider is 'custom' and generator is 'codex': generate ralph-config.json and all config files, but SKIP writing scripts/preflight.sh — Codex will generate it separately.
 Output <promise>ONBOARD_COMPLETE</promise> when done.
@@ -779,7 +789,7 @@ elif [[ "$result" == *"<promise>ONBOARD_COMPLETE</promise>"* ]]; then
   $PY -c "
 import json, sys
 c = json.load(open('ralph-config.json'))
-required = ['targetUrl', 'targetName', 'cloudProvider', 'framework', 'database']
+required = ['targetUrl', 'targetName', 'cloudProvider', 'framework', 'database', 'language', 'stackProfile']
 missing = [k for k in required if k not in c]
 if missing:
     print(f'ERROR: ralph-config.json missing required fields: {missing}', file=sys.stderr)
@@ -788,6 +798,18 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
     print(f'ERROR: invalid cloudProvider: {c[\"cloudProvider\"]}', file=sys.stderr)
     sys.exit(1)
 " || exit 1
+
+  # ── Install the stack template (same path the skill uses) ──
+  # setup-stack.sh reads language + stackProfile from ralph-config.json, copies
+  # the matching template (package.json, tsconfig.json, biome.json, etc.),
+  # appends Makefile targets, runs the language-appropriate install, and drops
+  # .ralph-setup-done so the Makefile guard passes.
+  echo ""
+  echo "--- Installing stack template... ---"
+  if ! bash .claude/skills/ralph-to-ralph-onboard/scripts/setup-stack.sh; then
+    echo "ERROR: setup-stack.sh failed. Check the output above."
+    exit 1
+  fi
 
   # ── Write setup verification results to ralph-config.json ──
   $PY -c "
