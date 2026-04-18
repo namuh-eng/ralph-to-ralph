@@ -29,7 +29,8 @@
       ".omc",
       ".omx",
       "*.d.ts",
-      "public"
+      "public",
+      "ralph-config.json"
     ]
   }
 }
