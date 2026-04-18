@@ -43,6 +43,12 @@ check_time_budget() {
   fi
 }
 
+# Verification gate commands. Keep them overridable for tests and stack-specific tuning.
+VERIFY_CHECK_CMD="${VERIFY_CHECK_CMD:-make check}"
+VERIFY_TEST_CMD="${VERIFY_TEST_CMD:-make test}"
+VERIFY_BUILD_CMD="${VERIFY_BUILD_CMD:-make build}"
+VERIFY_DOCKER_CMD="${VERIFY_DOCKER_CMD:-docker build -t ralph-watchdog-verify .}"
+
 # Lock file
 if [ -f "$LOCKFILE" ]; then
   PID=$(cat "$LOCKFILE" 2>/dev/null)
@@ -320,6 +326,54 @@ inspect_done() {
   [ -f ".inspect-complete" ]
 }
 
+run_verification_command() {
+  local label="$1"
+  local command="$2"
+
+  log "Phase 2: Verification gate running: $label"
+  sh -c "$command" >>"$LOG_FILE" 2>&1
+}
+
+verify_build_integrity() {
+  run_verification_command "check" "$VERIFY_CHECK_CMD" || return 1
+  run_verification_command "test" "$VERIFY_TEST_CMD" || return 1
+  run_verification_command "build" "$VERIFY_BUILD_CMD" || return 1
+
+  if [ -f "Dockerfile" ]; then
+    run_verification_command "docker" "$VERIFY_DOCKER_CMD" || return 1
+  fi
+
+  return 0
+}
+
+reset_verification_flags() {
+  local reset_summary
+  reset_summary=$($PY - <<'PY'
+import json
+
+with open("prd.json") as f:
+    prd = json.load(f)
+
+build_reset = 0
+qa_reset = 0
+
+for item in prd:
+    if item.get("build_pass", False):
+        item["build_pass"] = False
+        build_reset += 1
+    if item.get("qa_pass", False):
+        item["qa_pass"] = False
+        qa_reset += 1
+
+with open("prd.json", "w") as f:
+    json.dump(prd, f, indent=2)
+
+print(f"build={build_reset} qa={qa_reset}")
+PY
+  )
+  log "Phase 2: Reset verification flags ($reset_summary)"
+}
+
 cron_backup() {
   git add -A 2>/dev/null
   git commit -m "watchdog backup $(date '+%H:%M') — $(count_passes)/$(total_tasks) passes" 2>/dev/null || true
@@ -341,7 +395,7 @@ init_failure_log
 
 # ─── PHASE 1: Inspect ───
 
-MAX_INSPECT_RESTARTS=5
+MAX_INSPECT_RESTARTS="${MAX_INSPECT_RESTARTS:-5}"
 inspect_restarts=0
 
 while ! inspect_done; do
@@ -384,7 +438,7 @@ done
 
 # ─── PHASE 2 + 3: Build → QA → Fix loop ───
 
-MAX_CYCLES=5
+MAX_CYCLES="${MAX_CYCLES:-5}"
 for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
   log ""
   log "===== CYCLE $cycle/$MAX_CYCLES ====="
@@ -392,7 +446,7 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
   check_budget
 
   # ─── PHASE 2: Build ───
-  MAX_BUILD_RESTARTS=10
+  MAX_BUILD_RESTARTS="${MAX_BUILD_RESTARTS:-10}"
   build_restarts=0
 
   while ! all_passed; do
@@ -419,7 +473,7 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
     cron_backup
 
     if all_passed; then
-      log "Phase 2: All $(total_tasks) features pass!"
+      log "Phase 2: All $(total_tasks) features report build_pass."
       break
     fi
 
@@ -438,8 +492,22 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
     sleep 5
   done
 
+  if ! all_passed; then
+    log "Phase 2: Build incomplete after $build_restarts attempts. Skipping QA and restarting build cycle."
+    continue
+  fi
+
+  if ! verify_build_integrity; then
+    log "Phase 2: Verification gate failed. Resetting build and QA flags before retrying build."
+    reset_verification_flags
+    cron_backup
+    continue
+  fi
+
+  log "Phase 2: Verification gate passed. Proceeding to QA."
+
   # ─── PHASE 3: QA ───
-  MAX_QA_RESTARTS=10
+  MAX_QA_RESTARTS="${MAX_QA_RESTARTS:-10}"
   qa_restarts=0
 
   while [ "$(qa_complete)" != "true" ] && [ "$qa_restarts" -lt "$MAX_QA_RESTARTS" ]; do
