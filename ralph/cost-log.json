@@ -1,0 +1,16 @@
+{
+  "total_cost_usd": 0.0,
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
+  "budget_usd": 0.0,
+  "entries": [
+    {
+      "timestamp": "2026-04-18T13:45:05.759201",
+      "phase": "inspect",
+      "feature": "inspect",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0.0
+    }
+  ]
+}

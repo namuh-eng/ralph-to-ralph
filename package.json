@@ -1,0 +1,41 @@
+{
+  "name": "ralph-to-ralph-prod",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3015",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "db:generate": "drizzle-kit generate --config drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config drizzle.config.ts",
+    "db:push": "drizzle-kit push --config drizzle.config.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.38.0",
+    "next": "^16.2.1",
+    "pg": "^8.16.3",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^20.17.0",
+    "@types/pg": "^8.15.6",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "drizzle-kit": "^0.30.0",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  }
+}

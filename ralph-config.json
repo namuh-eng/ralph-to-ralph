@@ -1,0 +1,35 @@
+{
+  "targetUrl": "https://example.com",
+  "targetName": "example-watchdog-smoke",
+  "cloudProvider": "custom",
+  "deploymentTier": "custom",
+  "framework": "nextjs",
+  "database": "postgres",
+  "dbProvider": "local",
+  "skipDeploy": true,
+  "authMode": "api-key",
+  "browserAgent": "ever",
+  "services": {},
+  "sdk": {
+    "enabled": false,
+    "languages": []
+  },
+  "research": {
+    "apiEndpoints": [],
+    "authPattern": "api-key",
+    "dataModel": "minimal — example.com is a static page",
+    "summary": "example.com is IANA's reserved example domain with no product features. This is a watchdog smoke test clone."
+  },
+  "setup": {
+    "verified": ["node", "npm", "ever"],
+    "pending": ["database-url", "anthropic-api-key", "dashboard-key"],
+    "checks": {
+      "node": { "command": "node --version", "status": "pass", "detail": "v25.2.1" },
+      "npm": { "command": "npm --version", "status": "pass", "detail": "11.6.2" },
+      "ever": { "command": "ever --version", "status": "pass", "detail": "0.1.0" },
+      "database-url": { "envVar": "DATABASE_URL", "status": "pending", "error": "could not verify — .env access restricted; preflight script will check" },
+      "anthropic-api-key": { "envVar": "ANTHROPIC_API_KEY", "status": "pending", "error": "could not verify — .env access restricted; deferrable" },
+      "dashboard-key": { "envVar": "DASHBOARD_KEY", "status": "pending", "error": "could not verify — .env access restricted; deferrable" }
+    }
+  }
+}

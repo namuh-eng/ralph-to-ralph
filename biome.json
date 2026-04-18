@@ -1,0 +1,35 @@
+{
+  "$schema": "https://biomejs.dev/schemas/1.9.0/schema.json",
+  "organizeImports": { "enabled": true },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "suspicious": {
+        "noExplicitAny": "error"
+      }
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "files": {
+    "ignore": [
+      "node_modules",
+      ".next",
+      "dist",
+      "drizzle",
+      "packages/sdk/dist",
+      "test-results",
+      "playwright-report",
+      "*.config.js",
+      "coverage",
+      ".omc",
+      ".omx",
+      "*.d.ts",
+      "public"
+    ]
+  }
+}
