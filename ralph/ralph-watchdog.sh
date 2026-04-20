@@ -43,6 +43,28 @@ check_time_budget() {
   fi
 }
 
+run_watchdog_command() {
+  local label="$1"
+  local command="$2"
+
+  if [ -z "$command" ]; then
+    log "Phase 2: Skipping $label verification (empty command)."
+    return 0
+  fi
+
+  log "Phase 2: Verifying workspace via $label: $command"
+  bash -lc "$command" >> "$LOG_FILE" 2>&1
+  local exit_code=$?
+
+  if [ "$exit_code" -eq 0 ]; then
+    log "Phase 2: Verification passed for $label."
+    return 0
+  fi
+
+  log "Phase 2: Verification failed for $label (exit=$exit_code)."
+  return "$exit_code"
+}
+
 # Lock file
 if [ -f "$LOCKFILE" ]; then
   PID=$(cat "$LOCKFILE" 2>/dev/null)
@@ -316,6 +338,50 @@ else:
 " 2>/dev/null || echo "false"
 }
 
+reset_pass_flags() {
+  local reset_counts
+  reset_counts=$($PY -c "
+import json
+
+with open('prd.json') as f:
+    prd = json.load(f)
+
+build_reset = 0
+qa_reset = 0
+for item in prd:
+    if item.get('build_pass', False):
+        build_reset += 1
+    if item.get('qa_pass', False):
+        qa_reset += 1
+    item['build_pass'] = False
+    item['qa_pass'] = False
+
+with open('prd.json', 'w') as f:
+    json.dump(prd, f, indent=2)
+
+print(f'{build_reset}:{qa_reset}')
+" 2>/dev/null || echo "0:0")
+
+  log "Phase 2: Reset stale pass flags (build_pass=${reset_counts%%:*}, qa_pass=${reset_counts##*:})."
+}
+
+verify_workspace_contract() {
+  local check_cmd="${WATCHDOG_VERIFY_CHECK_CMD:-make check}"
+  local test_cmd="${WATCHDOG_VERIFY_TEST_CMD:-make test}"
+  local build_cmd="${WATCHDOG_VERIFY_BUILD_CMD:-make build}"
+  local docker_cmd="${WATCHDOG_VERIFY_DOCKER_CMD:-docker build .}"
+
+  run_watchdog_command "check" "$check_cmd" || return 1
+  run_watchdog_command "test" "$test_cmd" || return 1
+  run_watchdog_command "build" "$build_cmd" || return 1
+
+  if [ -f "Dockerfile" ]; then
+    run_watchdog_command "docker" "$docker_cmd" || return 1
+  else
+    log "Phase 2: Skipping docker verification (no Dockerfile)."
+  fi
+}
+
 inspect_done() {
   [ -f ".inspect-complete" ]
 }
@@ -341,7 +407,7 @@ init_failure_log
 
 # ─── PHASE 1: Inspect ───
 
-MAX_INSPECT_RESTARTS=5
+MAX_INSPECT_RESTARTS="${MAX_INSPECT_RESTARTS:-5}"
 inspect_restarts=0
 
 while ! inspect_done; do
@@ -384,7 +450,7 @@ done
 
 # ─── PHASE 2 + 3: Build → QA → Fix loop ───
 
-MAX_CYCLES=5
+MAX_CYCLES="${MAX_CYCLES:-5}"
 for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
   log ""
   log "===== CYCLE $cycle/$MAX_CYCLES ====="
@@ -392,7 +458,7 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
   check_budget
 
   # ─── PHASE 2: Build ───
-  MAX_BUILD_RESTARTS=10
+  MAX_BUILD_RESTARTS="${MAX_BUILD_RESTARTS:-10}"
   build_restarts=0
 
   while ! all_passed; do
@@ -438,8 +504,21 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
     sleep 5
   done
 
+  if ! all_passed; then
+    REMAINING=$(($(total_tasks) - $(count_passes)))
+    log "Phase 2: Build incomplete after restarts — $REMAINING features still need build_pass. Skipping QA for this cycle."
+    continue
+  fi
+
+  if ! verify_workspace_contract; then
+    log "Phase 2: Independent verification failed. Resetting stale pass flags and returning to build next cycle."
+    reset_pass_flags
+    cron_backup
+    continue
+  fi
+
   # ─── PHASE 3: QA ───
-  MAX_QA_RESTARTS=10
+  MAX_QA_RESTARTS="${MAX_QA_RESTARTS:-10}"
   qa_restarts=0
 
   while [ "$(qa_complete)" != "true" ] && [ "$qa_restarts" -lt "$MAX_QA_RESTARTS" ]; do
