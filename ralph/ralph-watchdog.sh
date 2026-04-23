@@ -219,28 +219,13 @@ PY
 }
 
 write_final_status() {
-  local total qa_passed build_passed exhausted blocked
+  local total qa_passed build_passed exhausted blocked qa_state_json
+  qa_state_json="$(qa_state_snapshot)"
   total=$(total_tasks)
-  qa_passed=$($PY -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo "0")
+  qa_passed=$(printf '%s' "$qa_state_json" | $PY -c "import json,sys; print(json.load(sys.stdin).get('qa_passed', 0))" 2>/dev/null || echo "0")
   build_passed=$(count_passes)
-  exhausted=$($PY - <<'PY' 2>/dev/null || echo "0"
-import json
-from collections import Counter
-try:
-    report = json.load(open('qa-report.json'))
-except Exception:
-    print(0)
-    raise SystemExit
-counts = Counter(item.get('feature_id') for item in report if item.get('feature_id'))
-prd = json.load(open('prd.json'))
-qa_passed = {item['id'] for item in prd if item.get('qa_pass', False)}
-print(sum(1 for fid, count in counts.items() if count >= 3 and fid not in qa_passed))
-PY
-)
-  blocked=$(( total - qa_passed - exhausted ))
-  if [ "$blocked" -lt 0 ]; then
-    blocked=0
-  fi
+  exhausted=$(printf '%s' "$qa_state_json" | $PY -c "import json,sys; print(json.load(sys.stdin).get('exhausted', 0))" 2>/dev/null || echo "0")
+  blocked=$(printf '%s' "$qa_state_json" | $PY -c "import json,sys; print(json.load(sys.stdin).get('actionable_remaining', 0))" 2>/dev/null || echo "0")
 
   _WD_STATUS="$RUN_STATUS" \
   _WD_REASON="$RUN_STATUS_REASON" \
@@ -383,44 +368,85 @@ all_passed() {
   [ "$total" -gt 0 ] && [ "$passed" -ge "$total" ]
 }
 
-qa_complete() {
-  $PY -c "
-import json
-prd = json.load(open('prd.json'))
-unverified = [item['id'] for item in prd if not item.get('qa_pass', False)]
-if unverified:
-    print('false')
-else:
-    print('true')
-" 2>/dev/null || echo "false"
-}
-
-qa_progress_snapshot() {
-  $PY - <<'PY' 2>/dev/null || echo "0:0:0"
+qa_state_snapshot() {
+  $PY - <<'PY' 2>/dev/null || echo '{"total":0,"qa_passed":0,"exhausted":0,"failed":0,"crashed":0,"done":0,"actionable_remaining":0,"all_done":false,"all_passed":false,"report_entries":0}'
 import json
 from pathlib import Path
 
-qa_passed = 0
-qa_remaining = 0
-qa_report_entries = 0
+payload = {
+    'total': 0,
+    'qa_passed': 0,
+    'exhausted': 0,
+    'failed': 0,
+    'crashed': 0,
+    'done': 0,
+    'actionable_remaining': 0,
+    'all_done': False,
+    'all_passed': False,
+    'report_entries': 0,
+}
 
 try:
     prd = json.load(open('prd.json'))
-    qa_passed = sum(1 for item in prd if item.get('qa_pass', False))
-    qa_remaining = sum(1 for item in prd if not item.get('qa_pass', False))
+    payload['total'] = len(prd)
+    payload['qa_passed'] = sum(1 for item in prd if item.get('qa_pass', False))
 except Exception:
-    pass
+    print(json.dumps(payload))
+    raise SystemExit
 
 qa_report_path = Path('qa-report.json')
 if qa_report_path.exists():
     try:
         qa_report = json.load(open(qa_report_path))
         if isinstance(qa_report, list):
-            qa_report_entries = len(qa_report)
+            payload['report_entries'] = len(qa_report)
     except Exception:
         pass
 
-print(f"{qa_passed}:{qa_remaining}:{qa_report_entries}")
+summary_path = Path('qa-report-summary.json')
+if summary_path.exists():
+    try:
+        summary = json.load(open(summary_path))
+        totals = summary.get('totals', {})
+        payload['qa_passed'] = int(totals.get('features_passed', payload['qa_passed']))
+        payload['exhausted'] = int(totals.get('features_exhausted', 0))
+        payload['failed'] = int(totals.get('features_failed', 0))
+        payload['crashed'] = int(totals.get('features_crashed', 0))
+    except Exception:
+        pass
+
+payload['done'] = payload['qa_passed'] + payload['exhausted']
+payload['actionable_remaining'] = payload['total'] - payload['done']
+if payload['actionable_remaining'] < 0:
+    payload['actionable_remaining'] = 0
+payload['all_done'] = payload['done'] >= payload['total'] and payload['total'] > 0
+payload['all_passed'] = payload['qa_passed'] >= payload['total'] and payload['total'] > 0
+
+print(json.dumps(payload))
+PY
+}
+
+qa_complete() {
+  _WD_QA_STATE="$(qa_state_snapshot)" $PY - <<'PY' 2>/dev/null || echo "false"
+import json, os
+state = json.loads(os.environ['_WD_QA_STATE'])
+print('true' if state.get('all_done') else 'false')
+PY
+}
+
+qa_all_passed() {
+  _WD_QA_STATE="$(qa_state_snapshot)" $PY - <<'PY' 2>/dev/null || echo "false"
+import json, os
+state = json.loads(os.environ['_WD_QA_STATE'])
+print('true' if state.get('all_passed') else 'false')
+PY
+}
+
+qa_progress_snapshot() {
+  _WD_QA_STATE="$(qa_state_snapshot)" $PY - <<'PY' 2>/dev/null || echo "0:0:0:0"
+import json, os
+state = json.loads(os.environ['_WD_QA_STATE'])
+print(f"{state.get('qa_passed', 0)}:{state.get('actionable_remaining', 0)}:{state.get('report_entries', 0)}:{state.get('exhausted', 0)}")
 PY
 }
 
@@ -634,22 +660,23 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
     fi
     rm -f "$PHASE_LOG_TMP"
 
-    IFS=':' read -r QA_BEFORE_PASSED QA_BEFORE_REMAINING QA_BEFORE_REPORTS <<< "$QA_BEFORE_SNAPSHOT"
-    IFS=':' read -r QA_AFTER_PASSED QA_AFTER_REMAINING QA_AFTER_REPORTS <<< "$QA_AFTER_SNAPSHOT"
+    IFS=':' read -r QA_BEFORE_PASSED QA_BEFORE_REMAINING QA_BEFORE_REPORTS QA_BEFORE_EXHAUSTED <<< "$QA_BEFORE_SNAPSHOT"
+    IFS=':' read -r QA_AFTER_PASSED QA_AFTER_REMAINING QA_AFTER_REPORTS QA_AFTER_EXHAUSTED <<< "$QA_AFTER_SNAPSHOT"
 
     QA_PROGRESS_MADE=false
     if [ "$QA_AFTER_PASSED" -gt "$QA_BEFORE_PASSED" ] || \
        [ "$QA_AFTER_REMAINING" -lt "$QA_BEFORE_REMAINING" ] || \
-       [ "$QA_AFTER_REPORTS" -gt "$QA_BEFORE_REPORTS" ]; then
+       [ "$QA_AFTER_REPORTS" -gt "$QA_BEFORE_REPORTS" ] || \
+       [ "$QA_AFTER_EXHAUSTED" -gt "$QA_BEFORE_EXHAUSTED" ]; then
       QA_PROGRESS_MADE=true
     fi
 
     if [ "$QA_PROGRESS_MADE" = true ]; then
       qa_stall_count=0
-      log "Phase 3: QA made forward progress (qa_pass ${QA_BEFORE_PASSED}->${QA_AFTER_PASSED}, remaining ${QA_BEFORE_REMAINING}->${QA_AFTER_REMAINING}, reports ${QA_BEFORE_REPORTS}->${QA_AFTER_REPORTS}, runtime=${QA_RUNTIME}s)."
+      log "Phase 3: QA made forward progress (qa_pass ${QA_BEFORE_PASSED}->${QA_AFTER_PASSED}, actionable ${QA_BEFORE_REMAINING}->${QA_AFTER_REMAINING}, reports ${QA_BEFORE_REPORTS}->${QA_AFTER_REPORTS}, exhausted ${QA_BEFORE_EXHAUSTED}->${QA_AFTER_EXHAUSTED}, runtime=${QA_RUNTIME}s)."
     else
       qa_stall_count=$((qa_stall_count + 1))
-      log "Phase 3: QA made no forward progress (qa_pass=${QA_AFTER_PASSED}, remaining=${QA_AFTER_REMAINING}, reports=${QA_AFTER_REPORTS}, runtime=${QA_RUNTIME}s, stall=${qa_stall_count}/${QA_STALL_THRESHOLD})."
+      log "Phase 3: QA made no forward progress (qa_pass=${QA_AFTER_PASSED}, actionable=${QA_AFTER_REMAINING}, reports=${QA_AFTER_REPORTS}, exhausted=${QA_AFTER_EXHAUSTED}, runtime=${QA_RUNTIME}s, stall=${qa_stall_count}/${QA_STALL_THRESHOLD})."
     fi
 
     if [ "$(qa_complete)" != "true" ]; then
@@ -664,7 +691,7 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
 
     if [ "$QA_PROGRESS_MADE" = false ] && [ "$qa_stall_count" -ge "$QA_STALL_THRESHOLD" ]; then
       qa_stalled=true
-      log "Phase 3: QA_STALLED after $qa_stall_count consecutive zero-progress attempts. Remaining QA work: $QA_AFTER_REMAINING features."
+      log "Phase 3: QA_STALLED after $qa_stall_count consecutive zero-progress attempts. Remaining actionable QA work: $QA_AFTER_REMAINING features."
       log "Phase 3: Stopping honestly instead of relaunching QA with no forward motion."
       cron_backup
       break
@@ -674,26 +701,36 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
   done
 
   QA_STATUS=$(qa_complete)
-  QA_PASSED=$($PY -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo "0")
+  QA_STATE_JSON="$(qa_state_snapshot)"
+  QA_PASSED=$(printf '%s' "$QA_STATE_JSON" | $PY -c "import json,sys; print(json.load(sys.stdin).get('qa_passed', 0))" 2>/dev/null || echo "0")
+  QA_EXHAUSTED=$(printf '%s' "$QA_STATE_JSON" | $PY -c "import json,sys; print(json.load(sys.stdin).get('exhausted', 0))" 2>/dev/null || echo "0")
+  QA_ACTIONABLE=$(printf '%s' "$QA_STATE_JSON" | $PY -c "import json,sys; print(json.load(sys.stdin).get('actionable_remaining', 0))" 2>/dev/null || echo "0")
   TOTAL=$(total_tasks)
 
-  if [ "$QA_STATUS" = "true" ] && all_passed; then
+  if [ "$(qa_all_passed)" = "true" ] && all_passed; then
     RUN_STATUS="SUCCESS"
     RUN_STATUS_REASON="All features built and QA verified"
-    log "=== ALL $TOTAL FEATURES: BUILT + QA VERIFIED ($QA_PASSED/$TOTAL qa_pass) ==="
+    log "=== ALL $TOTAL FEATURES: BUILT + QA VERIFIED ($QA_PASSED/$TOTAL qa_pass, exhausted=$QA_EXHAUSTED) ==="
+    break
+  fi
+
+  if [ "$QA_STATUS" = "true" ]; then
+    RUN_STATUS="INCOMPLETE_QA"
+    RUN_STATUS_REASON="All QA items reached terminal states, but not all features passed"
+    log "Phase 3: QA reached terminal completion without full pass coverage. QA passed: $QA_PASSED/$TOTAL. Exhausted: $QA_EXHAUSTED. Build passes: $(count_passes)/$TOTAL."
     break
   fi
 
   if [ "$qa_stalled" = true ]; then
     RUN_STATUS="QA_STALLED"
     RUN_STATUS_REASON="Repeated QA attempts made zero forward progress"
-    log "Phase 3: Cycle $cycle terminated with QA_STALLED. QA passed: $QA_PASSED/$TOTAL. Build passes: $(count_passes)/$TOTAL."
+    log "Phase 3: Cycle $cycle terminated with QA_STALLED. QA passed: $QA_PASSED/$TOTAL. Exhausted: $QA_EXHAUSTED. Build passes: $(count_passes)/$TOTAL."
     break
   fi
 
-  log "Phase 3: Cycle $cycle done. QA passed: $QA_PASSED/$TOTAL. Build passes: $(count_passes)/$TOTAL."
+  log "Phase 3: Cycle $cycle done. QA passed: $QA_PASSED/$TOTAL. Exhausted: $QA_EXHAUSTED. Build passes: $(count_passes)/$TOTAL."
   if [ "$QA_STATUS" != "true" ]; then
-    log "Phase 3: QA incomplete — $(($TOTAL - $QA_PASSED)) features not qa_pass. Restarting QA..."
+    log "Phase 3: QA incomplete — $QA_ACTIONABLE actionable features remain. Restarting QA..."
   else
     AFTER_QA=$(count_passes)
     REMAINING=$(($TOTAL - $AFTER_QA))
@@ -702,12 +739,12 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
 done
 
 if [ "$RUN_STATUS" = "IN_PROGRESS" ]; then
-  if [ "$(qa_complete)" = "true" ] && all_passed; then
+  if [ "$(qa_all_passed)" = "true" ] && all_passed; then
     RUN_STATUS="SUCCESS"
     RUN_STATUS_REASON="All features built and QA verified"
-  elif all_passed; then
+  elif [ "$(qa_complete)" = "true" ]; then
     RUN_STATUS="INCOMPLETE_QA"
-    RUN_STATUS_REASON="Build completed but QA did not finish"
+    RUN_STATUS_REASON="All QA items reached terminal states, but not all features passed"
   else
     RUN_STATUS="BUILD_INCOMPLETE"
     RUN_STATUS_REASON="Build loop ended without all features passing"
@@ -723,25 +760,10 @@ MINUTES=$(( (ELAPSED % 3600) / 60 ))
 SECONDS_LEFT=$(( ELAPSED % 60 ))
 TOTAL=$(total_tasks)
 BUILD_PASSED=$(count_passes)
-QA_PASSED=$($PY -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo "0")
-EXHAUSTED=$($PY - <<'PY' 2>/dev/null || echo "0"
-import json
-from collections import Counter
-try:
-    report = json.load(open('qa-report.json'))
-except Exception:
-    print(0)
-    raise SystemExit
-counts = Counter(item.get('feature_id') for item in report if item.get('feature_id'))
-prd = json.load(open('prd.json'))
-qa_passed = {item['id'] for item in prd if item.get('qa_pass', False)}
-print(sum(1 for fid, count in counts.items() if count >= 3 and fid not in qa_passed))
-PY
-)
-BLOCKED=$(( TOTAL - QA_PASSED - EXHAUSTED ))
-if [ "$BLOCKED" -lt 0 ]; then
-  BLOCKED=0
-fi
+QA_STATE_JSON="$(qa_state_snapshot)"
+QA_PASSED=$(printf '%s' "$QA_STATE_JSON" | $PY -c "import json,sys; print(json.load(sys.stdin).get('qa_passed', 0))" 2>/dev/null || echo "0")
+EXHAUSTED=$(printf '%s' "$QA_STATE_JSON" | $PY -c "import json,sys; print(json.load(sys.stdin).get('exhausted', 0))" 2>/dev/null || echo "0")
+BLOCKED=$(printf '%s' "$QA_STATE_JSON" | $PY -c "import json,sys; print(json.load(sys.stdin).get('actionable_remaining', 0))" 2>/dev/null || echo "0")
 
 log ""
 log "========================================="
