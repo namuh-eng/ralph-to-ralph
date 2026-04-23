@@ -33,6 +33,7 @@ resolve_template() {
     typescript-realtime-app)  echo "typescript-nextjs" ;;
     typescript-platform)      echo "typescript-nextjs" ;;
     python-api-service)       echo "python-fastapi" ;;
+    go-api-service)           echo "go-chi" ;;
     *) echo "${lang}-${profile}" ;;
   esac
 }
