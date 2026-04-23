@@ -48,14 +48,21 @@ fi
 
 echo "==> Setting up stack: ${LANGUAGE} / ${STACK_PROFILE} (template: ${TEMPLATE_NAME})"
 
-# --- 1. Copy config files from template to repo root ---
-echo "  Copying config files..."
-for f in package.json tsconfig.json biome.json drizzle.config.ts vitest.config.ts playwright.config.ts Dockerfile .dockerignore next.config.js next-env.d.ts tailwind.config.ts postcss.config.js; do
-  if [ -f "${TEMPLATE_DIR}/${f}" ]; then
-    cp "${TEMPLATE_DIR}/${f}" "${REPO_ROOT}/${f}"
-    echo "    → ${f}"
-  fi
-done
+# --- 1. Copy template root files to repo root ---
+echo "  Copying template root files..."
+while IFS= read -r template_file; do
+  rel_path="${template_file#${TEMPLATE_DIR}/}"
+
+  case "$rel_path" in
+    src/*|.gitignore-append|makefile-targets.mk)
+      continue
+      ;;
+  esac
+
+  mkdir -p "${REPO_ROOT}/$(dirname "$rel_path")"
+  cp "$template_file" "${REPO_ROOT}/${rel_path}"
+  echo "    → ${rel_path}"
+done < <(find "$TEMPLATE_DIR" -type f | sort)
 
 # --- 2. Copy source scaffolding (src/, preserving existing files) ---
 if [ -d "${TEMPLATE_DIR}/src" ]; then
