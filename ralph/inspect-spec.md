@@ -28,62 +28,39 @@ For the clone:
 
 ## Inspection Strategy
 
-### Phase A: Docs Extraction (FAST — bulk download, no UI testing)
-Before touching the UI, extract ALL available documentation. Docs tell you what the product does. UI tells you how it looks. This phase should be FAST — no clicking around.
+### Phase A: Read pre-scraped docs (FAST — already on disk)
 
-**Goal:** Download every docs page into `target-docs/` directory, organized to match the original docs structure.
+**Docs are NOT your job to scrape.** A deterministic Python scraper (`scripts/scrape-docs.py`, driven by Scrapling + trafilatura) ran before iteration 1 and populated `target-docs/`. Your job in this phase is to *consume* what's there, not to fetch anything from the network.
 
-**Steps — try in this order (fastest first):**
-
-**Method 1: llms.txt (BEST — check first)**
-```bash
-curl -s <site-url>/llms.txt          # Index with all doc URLs
-curl -s <site-url>/llms-full.txt     # Full docs in one file (if available)
-curl -s <site-url>/docs/llms.txt     # Some sites put it under /docs/
-```
-If `llms-full.txt` exists → save it as `target-docs/full-docs.md` and you're done.
-If only the index exists → parse the URLs and fetch each page.
-
-**Method 2: Jina Reader (fast, no install, handles JS)**
-For each docs URL, prepend `r.jina.ai/`:
-```bash
-curl -s "https://r.jina.ai/<docs-page-url>" > target-docs/<page-name>.md
-```
-This returns clean markdown. No browser needed. Can be parallelized with `&` in bash.
-
-**Method 3: sitemap.xml**
-```bash
-curl -s <site-url>/sitemap.xml
-```
-Parse URLs, then use Method 2 (Jina Reader) to fetch each page.
-
-**Method 4: Ever CLI (last resort — slowest)**
-Only use if the docs are behind auth or Methods 1-3 fail:
-```bash
-ever navigate <docs-url> && ever extract
-```
-
-**Directory structure** — mirror the original docs hierarchy:
+**What's on disk:**
 ```
 target-docs/
-├── INDEX.md              # List of all pages with one-line descriptions
+├── INDEX.md          # List of every scraped page with a one-line description
+├── coverage.json     # Discovery method used + page count + status
+├── full-docs.md      # (optional) Single-file dump from llms-full.txt
+├── openapi.json|.yaml  # (optional) API contract if the target exposes one
 ├── overview.md
-├── api-reference/
-│   ├── emails/
-│   │   ├── send-email.md
-│   │   ├── list-emails.md
-│   │   └── ...
-│   ├── domains/
-│   └── ...
-├── guides/
-└── changelog.md
+├── api-reference/...
+├── guides/...
+└── ...mirrors the target's docs URL hierarchy
 ```
 
-**Create `target-docs/INDEX.md`** listing all extracted pages with one-line descriptions.
+**Steps:**
+1. `cat target-docs/INDEX.md` — get the table of contents.
+2. `cat target-docs/coverage.json` — confirm coverage (`page_count`, `discovery`, `passed: true`).
+3. If `target-docs/openapi.json` or `target-docs/openapi.yaml` exists, read it. This is the authoritative API contract — generate API-related PRD entries directly from it instead of guessing from prose.
+4. Read the docs files you need. Each one has a `<!-- Source: <url> -->` comment at the top so you can cross-reference back to the live page if you need to inspect the rendered version with Ever CLI.
 
-**Commit the docs extraction.**
+**Do NOT:**
+- Run `curl https://r.jina.ai/...`
+- Run `curl <site>/llms.txt` or `curl <site>/sitemap.xml`
+- Use `ever navigate <docs-url> && ever extract` to read docs pages
 
-**This phase should take 1-2 iterations MAX.** Bulk download everything, then move on to UI testing. Do NOT read pages one at a time with Ever CLI — that wastes iterations.
+The scraper already tried all of these. Doing them again wastes an iteration and you'll get the same result.
+
+**If `target-docs/INDEX.md` is missing or `coverage.json` shows `passed: false`:** the scraper failed. STOP and surface the failure in `inspect-progress.txt`. Do not try to scrape docs by hand — fix the scraper instead (`.venv-scrape/bin/python scripts/scrape-docs.py <url> --force`).
+
+**This phase should take ≤ 1 iteration.** Read the index, skim what matters for the DX summary, then move on to UI testing.
 
 ### Phase A.1: Onboarding Flow Discovery (during docs phase)
 
@@ -161,7 +138,8 @@ For each page/feature (one per iteration):
 ### When to use what:
 | Task | Tool |
 |------|------|
-| Reading docs/help pages | `ever extract` or `curl` (just read text) |
+| Reading docs/help pages | `cat target-docs/<path>.md` (already scraped) |
+| Reading API contract | `cat target-docs/openapi.json` (if present) |
 | Mapping site structure | `ever snapshot` (read nav links) |
 | Testing UI interactions | `ever snapshot` → `ever click` → `ever snapshot` |
 | Testing API features | `curl` with API key from `.env` |

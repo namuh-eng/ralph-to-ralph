@@ -3,6 +3,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const templateDrizzleConfig =
+  "../.claude/skills/ralph-to-ralph-onboard/templates/typescript-nextjs/drizzle.config";
+
 // Helper to extract dbCredentials.url from the drizzle config
 // The Config type is a union — dbCredentials only exists on certain branches
 function getDbUrl(config: unknown): string {
@@ -23,7 +26,7 @@ describe("drizzle.config.ts SSL configuration", () => {
     vi.stubEnv("DB_SSL", "true");
     vi.stubEnv("DATABASE_URL", "postgresql://localhost:5432/test");
 
-    const mod = await import("../drizzle.config");
+    const mod = await import(templateDrizzleConfig);
 
     expect(getDbUrl(mod.default)).toBe(
       "postgresql://localhost:5432/test?sslmode=no-verify",
@@ -35,7 +38,7 @@ describe("drizzle.config.ts SSL configuration", () => {
     // biome-ignore lint/performance/noDelete: process.env needs delete — assignment coerces to string "undefined"
     delete process.env.DB_SSL;
 
-    const mod = await import("../drizzle.config");
+    const mod = await import(templateDrizzleConfig);
 
     expect(getDbUrl(mod.default)).toBe("postgresql://localhost:5432/test");
   });
@@ -44,7 +47,7 @@ describe("drizzle.config.ts SSL configuration", () => {
     vi.stubEnv("DB_SSL", "false");
     vi.stubEnv("DATABASE_URL", "postgresql://localhost:5432/test");
 
-    const mod = await import("../drizzle.config");
+    const mod = await import(templateDrizzleConfig);
 
     expect(getDbUrl(mod.default)).toBe("postgresql://localhost:5432/test");
   });
@@ -56,7 +59,7 @@ describe("drizzle.config.ts SSL configuration", () => {
       "postgresql://localhost:5432/test?sslmode=require",
     );
 
-    const mod = await import("../drizzle.config");
+    const mod = await import(templateDrizzleConfig);
 
     expect(getDbUrl(mod.default)).toBe(
       "postgresql://localhost:5432/test?sslmode=require",

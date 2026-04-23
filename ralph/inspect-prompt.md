@@ -9,6 +9,7 @@ This is a **generic product cloning system** — the target could be any SaaS st
 - `ever-cli-reference.md`: Ever CLI command reference — use these to control the browser.
 - `prd.json`: Feature list you are building up (append new entries each iteration).
 - `inspect-progress.txt`: What you've already inspected (read first, update at end).
+- `target-docs/`: **Pre-scraped target product documentation.** A deterministic Python scraper (`scripts/scrape-docs.py`) populated this directory before iteration 1. Read `target-docs/INDEX.md` first to see what's available. **You do NOT need to scrape docs yourself** — read from disk.
 
 ## This Iteration
 
@@ -17,41 +18,32 @@ This is a **generic product cloning system** — the target could be any SaaS st
 3. Run `ever snapshot` to see the current page state.
 4. Follow the inspection strategy for your current iteration:
 
-### Phase A: Scrape ALL docs first (if nothing inspected yet)
+### Phase A: Read pre-scraped docs (if nothing inspected yet)
 
-**This is the most important phase.** Incomplete docs = incomplete clone. The current approach only captures a fraction of available docs. Follow `inspect-spec.md` Phase A strictly — it has the full scraping strategy.
+Docs have already been downloaded into `target-docs/` by `scripts/scrape-docs.py` before this loop started. **Do NOT run `curl`, `ever extract`, or any scraper on the target's docs site.** Read from disk instead.
 
-**Save all documentation to `target-docs/`** (NOT `clone-product-docs/`).
+1. **Read `target-docs/INDEX.md`** — this lists every page that was scraped, with a one-line description and the file path. If `target-docs/full-docs.md` exists, that single file is the entire docs site (from `llms-full.txt`).
+2. **Read `target-docs/coverage.json`** — confirms which discovery method succeeded and how many pages are available.
+3. **If `target-docs/openapi.json` or `target-docs/openapi.yaml` exists**, read it. This is the authoritative API contract — generate API-related PRD entries directly from it.
+4. **Skim the docs for the developer experience (DX)** — this is just as important as the UI:
+   - **SDKs / client libraries**: Does the target offer an npm/pip/gem package? What languages? What's the full API surface? (e.g., `client.emails.send({react: <Component/>})`)
+   - **React/template rendering**: Does the API accept React components, templates, or markup that gets rendered server-side?
+   - **CLI tools**: Does the target have a CLI?
+   - **Code examples**: What does the "getting started" flow look like for a developer?
+   - **Webhooks / event model**: How do developers consume events?
+   - Include SDK/DX features as PRD entries with category `"sdk"` or `"developer-experience"`.
+5. **Save a DX summary to `docs-extract.md`** — your synthesized notes on what the product does, the API shape, and the SDK surface. This is what the build agent will read; the raw docs in `target-docs/` are reference material.
 
-**Scraping priority (fastest → slowest):**
-1. **llms.txt** — Fetch `{targetUrl}/llms.txt` or `{targetUrl}/docs/llms.txt`. Parse it as a list of doc URLs. Fetch EVERY linked URL using Jina Reader (`curl -s "https://r.jina.ai/<url>"`). If `llms-full.txt` exists, save it as `target-docs/full-docs.md`.
-2. **sitemap.xml** — Fetch `{targetUrl}/sitemap.xml`. Filter for `/docs/` URLs. Fetch each via Jina Reader.
-3. **Manual crawl** — Only if methods 1-2 both fail.
-
-**File naming — use descriptive names matching the doc path:**
-- `{targetUrl}/docs/api-reference/emails/send` → `target-docs/api-reference/emails/send.md`
-- `{targetUrl}/docs/guides/webhooks` → `target-docs/guides/webhooks.md`
-- Each file MUST include a `<!-- Source: {original-url} -->` comment at the top for reference
-
-**Create `target-docs/INDEX.md`** listing every scraped page with a one-line description.
-
-**Capture the Developer Experience (DX)** — this is just as important as the UI:
-  - **SDKs / client libraries**: Does the target offer an npm/pip/gem package? What languages? What's the full API surface? (e.g., `client.emails.send({react: <Component/>})`)
-  - **React/template rendering**: Does the API accept React components, templates, or markup that gets rendered server-side?
-  - **CLI tools**: Does the target have a CLI?
-  - **Code examples**: What does the "getting started" flow look like for a developer?
-  - **Webhooks / event model**: How do developers consume events?
-- Include SDK/DX features as PRD entries with category `"sdk"` or `"developer-experience"`.
-- Save DX summary to `docs-extract.md`
+**If `target-docs/INDEX.md` is missing or empty, STOP.** That means the scraper failed or hasn't run. Output the failure to inspect-progress.txt and exit — do NOT try to scrape docs yourself, the scraper exists for a reason.
 
 ### Phase A.1: Onboarding Flow Discovery (during docs phase)
 
-The logged-in user has already completed onboarding, so the onboarding UI won't be visible. Discover it from docs instead:
+The logged-in user has already completed onboarding, so the onboarding UI won't be visible. Discover it from `target-docs/` instead:
 
-1. **Search scraped docs** for quickstart/getting-started/setup/welcome content
-2. **Use the docs search bar or AI assistant** (if the site has one) — ask about the onboarding process, first-run experience, and new user setup steps. Use Ever CLI to interact with it (`ever click` the search/assistant → `ever type` your question → `ever extract` the response)
-3. **Save findings** to `target-docs/onboarding-flow.md` — step-by-step sequence, required vs. skippable steps, empty states, what "done" looks like
-4. **Add PRD entries** with category `"onboarding"`, priority P2-P3, for each onboarding step + empty states
+1. **Grep `target-docs/`** for quickstart/getting-started/setup/welcome content. Files like `target-docs/quickstart.md`, `target-docs/getting-started.md`, or anything under `target-docs/guides/` are the first place to look.
+2. **Only if the docs are silent on onboarding**, use the docs site's search bar or AI assistant via Ever CLI as a fallback (`ever click` the assistant → `ever type` your question → `ever extract`). Most docs sites won't need this.
+3. **Save findings** to `target-docs/onboarding-flow.md` — step-by-step sequence, required vs. skippable steps, empty states, what "done" looks like.
+4. **Add PRD entries** with category `"onboarding"`, priority P2-P3, for each onboarding step + empty states.
 
 ### Phase A.2: Auth Flow Discovery (during docs/early iterations)
 
@@ -87,10 +79,21 @@ Inspect the target product's authentication system — this is P1 priority for t
   - Product overview and branding (`{productname}-clone`)
   - Complete design system (colors, typography, layout, shared components)
   - All data models with field types
+  - **API Architecture with response examples** — for each API endpoint include: method + path, request body schema (if POST/PATCH), a sample JSON response, error response format, and pagination format (if list endpoint). Example:
+    ```
+    GET /api/teams/{key}/issues?status=in_progress&page=1
+    Response: {
+      "issues": [{ "id": "uuid", "identifier": "ENG-123", "title": "..." }],
+      "total": 42, "page": 1, "pageSize": 50
+    }
+    Error: { "error": "Team not found", "status": 404 }
+    ```
   - **Backend Architecture** — map each feature to the cloud service that powers it (read `ralph-config.json` for the chosen provider)
   - **SDK/DX** — what SDK to build, what developer workflow to support
   - **Deployment** — deployment instructions for the chosen cloud provider (read `ralph-config.json`)
   - **Build Order** — prioritized list, core features first
+  - **Known Constraints** — document things like "Better Auth requires specific table names", "SES requires verified domain", "Google OAuth requires specific redirect URIs configured in Cloud Console". These prevent multi-attempt QA failures.
+  - **Keyboard Shortcuts** (if target is keyboard-first) — complete table of navigation, action, and selection shortcuts discovered during inspection
 
 - **Add `dependent_on` to every PRD entry** — list the IDs of related features that this feature depends on or shares components/data with. This gives the QA agent context about what else might break. Examples:
   - A detail page depends on its list page and the shared data table component
@@ -126,18 +129,28 @@ Inspect the target product's authentication system — this is P1 priority for t
    - P11+: Polish, settings, nice-to-haves
    - Last: Deployment
 
-7. Append new feature entries to `prd.json`. Every entry MUST include `"build_pass": false` and `"qa_pass": false` as initial values:
+7. Append new feature entries to `prd.json`. Every entry MUST include ALL of these fields:
    ```json
    {
      "id": "feature-001",
-     "description": "...",
-     "priority": "P1",
-     "category": "...",
-     "dependent_on": [],
+     "category": "crud",
+     "description": "Clear description of the feature",
+     "page": "/team/{key}/all",
+     "priority": "P3",
+     "core": true,
+     "ui_details": "Table layout with collapsible groups per workflow state. Each row: checkbox, priority icon, identifier (monospace), title (truncated), assignee avatar (24px), label pills, project badge, relative date. Group header: state icon + name + count + 'Add issue' button.",
+     "behavior": "Click row → navigate to detail page. Click 'Add issue' → inline input at group bottom, Enter to create, Escape to cancel. Right-click → context menu. Keyboard: j/k to navigate, Enter to open, x to select.",
+     "data_model": "Reads: issues (with joins to users, labels, projects). Writes: issues (inline create). Filters: status, assignee, label, priority.",
+     "dependent_on": ["layout-001", "infra-001"],
      "build_pass": false,
      "qa_pass": false
    }
    ```
+   **REQUIRED fields per entry:**
+   - `ui_details` — Component types, layout, sizes, colors. The build agent uses this to implement the UI.
+   - `behavior` — What happens on click, submit, error, empty state. The build agent uses this to wire up interactions.
+   - `data_model` — Which tables/fields this feature reads and writes.
+   - Missing any of these = the build agent has to guess = bugs. Fill them ALL in.
 8. Update `build-spec.md` incrementally with what you discovered.
 9. Update `inspect-progress.txt` with what you did.
 10. **Commit and push:**
@@ -152,4 +165,9 @@ Inspect the target product's authentication system — this is P1 priority for t
 - Take screenshots of every page you inspect.
 - Commit and push after every iteration.
 - Output `<promise>NEXT</promise>` after committing if more pages remain.
-- Output `<promise>INSPECT_COMPLETE</promise>` only when ALL pages are inspected AND `build-spec.md` is finalized.
+- Output `<promise>INSPECT_COMPLETE</promise>` only when ALL of the following are true:
+  1. ALL pages are inspected
+  2. `build-spec.md` is finalized (including API response examples and a "Known Constraints" section)
+  3. **PRD validation passes** — every entry in `prd.json` has non-empty `ui_details`, `behavior`, and `data_model` fields. Entries missing these are INCOMPLETE. Go back and fill them in before marking complete.
+  4. **PRD sizing validated** — no entry has more than 5 sections/features in its description. Split large entries (e.g., monolithic settings pages) into focused sub-entries.
+  5. **Keyboard shortcut inventory** — if the target product is keyboard-first (has Cmd+K or extensive shortcuts), include a shortcut table in `build-spec.md` with navigation shortcuts, action shortcuts, and selection shortcuts.

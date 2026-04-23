@@ -1,0 +1,7 @@
+# Python deps for scripts/scrape-docs.py
+# Installed once into .venv-scrape by inspect-ralph.sh, never shipped to the
+# generated clone. Pinned for reproducibility — bump deliberately.
+scrapling==0.2.99
+trafilatura==1.12.2
+lxml==5.3.0
+defusedxml==0.7.1

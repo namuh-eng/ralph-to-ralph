@@ -54,11 +54,19 @@ These values are provided in your prompt context. Use them directly — do NOT a
 
 Research the target product to understand what cloud services the clone will need. This informs your stack recommendation.
 
-### 3a: Read Documentation
-Try these sources in order (skip any that fail):
-1. `{targetUrl}/llms.txt` — LLM-optimized docs
-2. `{targetUrl}/sitemap.xml` — site structure
-3. `{targetUrl}/docs` — docs landing page
+### 3a: Locate & Read Documentation
+First, discover where the product's docs actually live — they're often on a different subdomain:
+1. Probe `docs.{domain}`, `developer.{domain}`, `developers.{domain}` — check if they resolve
+2. Try `{targetUrl}/docs`, `{targetUrl}/documentation`
+3. Check `{targetUrl}/llms.txt` — LLM-optimized docs (may reference the real docs URL)
+4. `{targetUrl}/sitemap.xml` — site structure
+
+If the docs live on a different subdomain (e.g. `docs.stripe.com` for `stripe.com`), set `docsUrl` in `ralph-config.json` so the doc scraper targets it directly during the inspect phase.
+
+Then read the docs:
+1. `{docsUrl or targetUrl}/llms.txt` — LLM-optimized docs
+2. `{docsUrl or targetUrl}/sitemap.xml` — site structure
+3. `{docsUrl or targetUrl}/docs` — docs landing page
 4. Look for links to API reference, SDKs, guides
 
 ### 3b: Analyze API Reference
@@ -125,11 +133,14 @@ Write the file `ralph-config.json` with this exact schema:
   "targetName": "example-clone",
   "cloudProvider": "aws",
   "deploymentTier": "personal",
+  "language": "typescript",
+  "stackProfile": "dashboard-app",
   "framework": "nextjs",
   "database": "postgres",
   "dbProvider": "neon",
   "skipDeploy": false,
   "authMode": "api-key",
+  "docsUrl": "https://docs.example.com",
   "browserAgent": "ever",
   "services": {
     "email": { "provider": "ses", "package": "@aws-sdk/client-sesv2" },
@@ -171,9 +182,12 @@ Write the file `ralph-config.json` with this exact schema:
 
 The `setup` section is optional for backwards compatibility — older configs without it are still valid. When present, the build loop can check `setup.pending` to warn about missing prerequisites before starting.
 
-**Required fields:** `targetUrl`, `targetName`, `cloudProvider`, `framework`, `database`.
+**Required fields:** `targetUrl`, `targetName`, `cloudProvider`, `framework`, `database`, `language`, `stackProfile`.
 **Valid cloudProvider values:** `vercel`, `aws`, `gcp`, `azure`, `custom`.
 **Valid deploymentTier values:** `personal`, `team`.
+- `language`: `typescript` | `go` | `python` | `rust` — selects the stack template under `.claude/skills/ralph-to-ralph-onboard/templates/`. The wrapper passes this in; do not guess.
+- `stackProfile`: `dashboard-app` | `api-service` | `content-app` | `realtime-app` | `platform` — selects which template variant to copy. The wrapper passes this in.
+- `docsUrl`: (optional) canonical documentation URL discovered during onboarding (e.g. `https://docs.stripe.com`). When present, the doc scraper targets this URL directly instead of probing subdomains at runtime. Set this during Step 3a if the docs live on a different subdomain than the target URL.
 - `browserAgent`: "ever" | "playwright" | "stagehand" | "custom" — browser agent for inspect and QA phases
 - `testAccount`: `{ "provider": "google", "email": "user@gmail.com" }` — Google account for auth during build/QA testing. The build and QA agents use this to log in via Google OAuth instead of attempting email/magic-link auth (which requires email delivery). Should be the Google account the user's browser is already logged into, so Ever CLI can complete OAuth flows automatically.
 
@@ -302,7 +316,7 @@ ever --version    # Ever CLI must be installed (DEFERRABLE — can fall back to 
 Output a clear error listing ALL missing critical dependencies at once (don't stop at the first one), then output `<promise>ONBOARD_FAILED</promise>` and stop.
 
 **If only DEFERRABLE checks fail:**
-Log them as `"pending"` in `setup.pending`, continue with onboarding, and include a warning in the final summary (Step 9).
+Log them as `"pending"` in `setup.pending`, continue with onboarding, and include a warning in the final summary (Step 8).
 
 **After all checks complete:**
 Update `ralph-config.json` with the `setup` section containing all verification results. This is the source of truth for what's ready and what's still needed.
@@ -313,106 +327,19 @@ Update `ralph-config.json` with the `setup` section containing all verification 
 
 Rewrite these files based on `ralph-config.json`. Each rewrite replaces the entire file content.
 
-### 7a: src/lib/db/schema.ts
-Clear to Drizzle imports only — remove all product-specific tables:
-```typescript
-import {
-  boolean,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-  varchar,
-} from "drizzle-orm/pg-core";
+**What the bash wrapper handles (do NOT write these yourself):**
+- `package.json`, `tsconfig.json`, `biome.json`, `drizzle.config.ts`, `vitest.config.ts`, `playwright.config.ts`
+- `src/lib/db/schema.ts`, `src/lib/db/index.ts` (empty schema + Drizzle client)
+- `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/globals.css`
+- `next.config.js`, `tailwind.config.ts`, `postcss.config.js`, `Dockerfile`, `.dockerignore`, `BUILD_GUIDE.md`
+- Appends real `typecheck`/`lint`/`test`/`dev`/`build` targets to the `Makefile`
+- Creates `.ralph-setup-done` so the Makefile guard passes
+- Runs `npm install` and `npx playwright install`
 
-// Tables will be created by the Build agent based on the target product's data model.
-```
+`setup-stack.sh` is invoked by the wrapper after you finish this prompt, reading `language` + `stackProfile` from `ralph-config.json`. Your only job here is the provider-specific config below.
 
 ### 7b: scripts/preflight.sh
 Regenerate for the chosen cloud provider using the templates below.
-
-### 7c: Initialize framework with official CLI (Next.js)
-
-**Use the official CLI tool** to initialize the framework — do NOT manually edit package.json for framework versions.
-
-If framework is `nextjs`:
-```bash
-# Create a temporary Next.js scaffold to get latest versions
-npx create-next-app@latest .tmp-nextjs-scaffold --ts --tailwind --app --src-dir --import-alias "@/*" --use-npm --yes
-
-# Extract the latest Next.js/React versions from the scaffold
-node -e "const p=require('./.tmp-nextjs-scaffold/package.json'); console.log(JSON.stringify({next:p.dependencies.next,react:p.dependencies.react,'react-dom':p.dependencies['react-dom']}))" > .tmp-versions.json
-
-# Clean up the scaffold
-rm -rf .tmp-nextjs-scaffold
-```
-
-Then update `package.json`:
-- Update `name` field to the clone name
-- Update `next`, `react`, and `react-dom` versions from `.tmp-versions.json`
-- Remove `.tmp-versions.json` after use
-- **Do NOT manually set framework version numbers** — always derive from the official CLI scaffold
-
-### 7c-2: Install framework dependencies
-
-The template `package.json` ships with only dev tooling (Biome, Playwright, TypeScript, Vitest). You must install all framework, ORM, UI, and cloud packages from scratch.
-
-**Step 1: Install framework + ORM + UI**
-
-Based on the framework determined in Step 3:
-
-Next.js (default):
-```bash
-# Install framework (versions from scaffold, see 7c above)
-npm install react@latest react-dom@latest
-
-# ORM + DB driver
-npm install drizzle-orm@latest pg@latest
-npm install --save-dev drizzle-kit@latest @types/pg@latest
-
-# UI + styling
-npm install tailwindcss@latest postcss@latest autoprefixer@latest
-npm install @radix-ui/react-dialog@latest @radix-ui/react-dropdown-menu@latest \
-  @radix-ui/react-tabs@latest @radix-ui/react-accordion@latest \
-  @radix-ui/react-popover@latest @radix-ui/react-switch@latest
-
-# React types
-npm install --save-dev @types/react@latest @types/react-dom@latest \
-  @vitejs/plugin-react@latest @testing-library/react@latest \
-  @testing-library/jest-dom@latest @testing-library/user-event@latest
-```
-
-Only install Radix UI components the clone actually needs (check Step 3 findings).
-
-**Step 2: Install cloud SDK dependencies**
-
-Only install packages for services the clone actually needs (determined by Step 3d). Always use `@latest`.
-
-AWS (skip packages not needed):
-```bash
-npm install @aws-sdk/client-s3@latest          # if storage needed
-npm install @aws-sdk/client-sesv2@latest        # if email needed
-npm install @aws-sdk/s3-request-presigner@latest # if presigned URLs needed
-```
-
-GCP:
-```bash
-npm install @google-cloud/storage@latest   # if storage needed
-npm install @sendgrid/mail@latest          # if email needed
-```
-
-Azure:
-```bash
-npm install @azure/storage-blob@latest          # if storage needed
-npm install @azure/communication-email@latest   # if email needed
-```
-
-Clean up:
-```bash
-rm -f .tmp-existing-deps.txt
-```
 
 ### 7d: pre-setup.md
 Regenerate the "AWS Infrastructure" section to match the chosen cloud provider. Keep all other sections (Tooling, Commands, Project Structure, Port) unchanged.
@@ -450,32 +377,18 @@ Run `bash scripts/preflight.sh` before starting the loop. It creates:
 ### 7e: CLAUDE.md
 Update the tech stack section to reflect the chosen cloud provider. Replace references to specific AWS services with the equivalent for the chosen provider. Keep the rest of the file unchanged.
 
-### 7f: src/lib/db/index.ts
-Verify that the SSL check uses `process.env.DB_SSL === "true"` (already fixed). Verify `DB_SSL` is documented in `.env.example`.
-
-### 7g: drizzle.config.ts
-Verify that the SSL check uses `process.env.DB_SSL === "true"` (already fixed).
-
-### 7h: inspect-prompt.md
+### 7f: inspect-prompt.md
 Replace AWS-specific cloud service mappings with the chosen cloud provider's equivalents. For example, replace "AWS SES" with "SendGrid" if GCP, or "Azure Communication Services" if Azure. Replace "S3" references with the appropriate storage service.
 
-### 7i: build-prompt.md
+### 7g: build-prompt.md
 Replace `@aws-sdk/*` references and SES/S3-specific instructions with the chosen cloud provider's equivalents. Update any code examples that reference AWS-specific APIs.
 
----
-
-## Step 8: Install Dependencies
-
-Run:
-```bash
-npm install
-```
-
-If `npm install` fails, report the error and output `<promise>ONBOARD_FAILED</promise>`.
+### 7h: Optional cloud SDK packages
+Only if the clone actually needs services beyond what the template installs (for example: AWS SES for email, S3 for storage). Use the bash tool to add them via `npm install <pkg>@latest`. This runs AFTER `setup-stack.sh` in the wrapper, so `package.json` already exists.
 
 ---
 
-## Step 9: Hand Off
+## Step 8: Hand Off
 
 Output a summary:
 ```

@@ -54,6 +54,18 @@ If they seem unsure, help them narrow it down: "Are you thinking of the whole pr
 
 Use WebSearch and WebFetch to learn about the target. Do this silently before asking any more questions — come back informed.
 
+### 2a: Locate the Documentation
+
+Before deep research, find where the product's docs actually live. They're often on a different subdomain:
+
+1. **Web search** for `"{product name}" developer documentation` or `"{product name}" API docs`
+2. **Probe common subdomains**: `docs.{domain}`, `developer.{domain}`, `developers.{domain}`
+3. **Check** `{url}/docs`, `{url}/documentation`, `{url}/llms.txt`
+
+If you find docs on a different subdomain (e.g. `docs.stripe.com` for `stripe.com`), note it — you'll save it as `docsUrl` in `ralph-config.json` during Phase 7. The doc scraper in the inspect phase uses this to target the correct site directly.
+
+### 2b: Research
+
 Look for:
 - **What it does** — the one-sentence pitch
 - **Core features** — the top 5-8 things users actually do in the product
@@ -62,8 +74,8 @@ Look for:
 - **Scale signals** — indie tool or massive platform?
 
 Good sources in order:
-1. `{url}/llms.txt` — LLM-optimized docs if they exist
-2. Their main docs site
+1. `{docsUrl or url}/llms.txt` — LLM-optimized docs if they exist
+2. Their main docs site (use the discovered docs URL)
 3. Their engineering/tech blog
 4. StackShare profile (`stackshare.io/{name}`)
 5. GitHub org (if open source)
@@ -76,6 +88,12 @@ Good sources in order:
 Present what you found before asking anything else.
 
 **What this is:** [1-2 sentence plain English description]
+
+**Documentation:** [discovered docs URL, e.g. "I found their docs at docs.stripe.com"]
+- If the docs URL differs from the target URL, confirm with the user:
+  > "Their developer docs live at `docs.stripe.com` — I'll use this for the doc scraper. Sound right?"
+- If the user corrects it, use their URL instead.
+- Save the confirmed URL as `docsUrl` in `ralph-config.json` during Phase 7.
 
 **Features this clone will have:**
 - [list every meaningful feature — the build loop will implement them all]
@@ -101,6 +119,33 @@ Ask something like:
 
 Their answer changes the deployment target recommendation, how much you explain about ops, and which services are worth setting up properly vs. faking.
 
+**If they pick 1 (Personal/hobby)**, offer the beginner fast track:
+
+> "Since this is personal, want me to set things up as a simple app? Most people start with TypeScript + Next.js — one codebase, easy to understand.
+>
+> 1. **Yes, keep it simple** — TypeScript + Next.js, perfect for getting started
+> 2. **Let me choose the stack** — I'll ask more questions about language and architecture"
+
+If they pick **"Yes, keep it simple"**:
+- Record these defaults in memory (do NOT write the file yet — Phase 7 writes the full
+  unified schema after research + final confirmation):
+  ```
+  language: "typescript"
+  stackProfile: "dashboard-app"
+  framework: "nextjs"
+  database: "postgres"
+  cloudProvider: "vercel"
+  deploymentTier: "personal"
+  dbProvider: "neon"
+  authMode: "api-key"
+  browserAgent: "ever"
+  skipDeploy: false
+  ```
+- Tell them: "Got it — TypeScript + Next.js on Vercel + Neon. I'll finish the checks and install, then we're building."
+- **Skip Question 2 through Question 3 below** — jump straight to Phase 4.5 (Verify Setup) with a reduced checklist (runtime, database, and Anthropic key), then skip to Phase 7 (Implement).
+
+If they pick **"Let me choose"**, or picked scale 2 or 3, continue with the full interview below.
+
 ### Question 2: Auth Model
 
 Ask:
@@ -114,6 +159,45 @@ Record their answer as `authMode`:
 - Choice 2 → `authMode: "better-auth"`
 
 This determines how the build agent implements authentication. Save it to `ralph-config.json`.
+
+### Question 2.5: Language
+
+If the user didn't take the beginner fast track, ask about their preferred language:
+
+> "What language do you want to build in?
+> 1. **TypeScript** — most templates available, best for web apps (Next.js, Express, Fastify)
+> 2. **Go** — great for APIs and backend services (chi, echo)
+> 3. **Python** — good for data-heavy or AI products (FastAPI, Django)
+> 4. **Rust** — for performance-critical services (Axum, Actix)
+> 5. **Other** — tell me what you want"
+
+Record as `language` in ralph-config.json. Default to `"typescript"` if unsure.
+
+### Question 2.6: Stack Profile
+
+> "Based on what I found about [target product], I'd recommend the **[profile]** setup. Here's why: [one sentence].
+>
+> But you can override — which fits best?
+> 1. **API service** — the target is mainly an API (like Stripe, Twilio, Resend)
+> 2. **Dashboard app** — it's a web app with a UI (like analytics, admin panels, CRM)
+> 3. **Platform** — it's infrastructure (like Vercel, Railway, Supabase)
+> 4. **Content app** — content-focused (like a CMS, docs site, blog platform)
+> 5. **Real-time app** — live features (like chat, collaboration, live dashboards)"
+
+Record as `stackProfile` in ralph-config.json.
+
+### Question 2.7: Frontend (if backend-only language)
+
+If `language` is not `typescript` (e.g., Go, Python, Rust), and the target product has a UI, ask:
+
+> "Since [target] has a web UI, what do you want for the frontend?
+> 1. **Next.js** — React-based, most popular
+> 2. **None** — API-only, no frontend needed
+> 3. **Other** — tell me what you want"
+
+Record as `frontend` in ralph-config.json. If the language is `typescript`, skip this — the frontend framework is the same as the backend.
+
+Record these values in memory. **Do not** write `ralph-config.json` or run `setup-stack.sh` here — Phase 7 handles both after research + final confirmation. Writing early produces incomplete config (missing `setup` section, `services`, `docsUrl`, etc.) and scaffolds the wrong stack if the user changes their mind later.
 
 ### Question 3: Existing CLI / Account Setup
 
@@ -338,14 +422,24 @@ The summary must reflect actual verification results from Phase 4.5 — show ✓
 
 ## Phase 7: Implement
 
-Follow the steps in @references/onboard-prompt.md, starting from **Step 3** (Technical Architecture Scan).
-
 You already have the answers to Steps 1 and 2 from the conversation — use them directly, don't ask again.
 
 Narrate progress so the user isn't staring at a blank screen:
 - "Writing ralph-config.json..."
-- "Installing dependencies..." (run npm install in background)
+- "Installing stack template..." (setup-stack.sh copies configs + installs deps)
 - "Rewriting config files..."
+
+**Step 7a — Write the unified config.** Use the Bash tool + a Python heredoc (see `onboard-prompt.md` Step 5 for the full schema) to write `ralph-config.json` with every field: `targetUrl`, `targetName`, `cloudProvider`, `deploymentTier`, `language`, `stackProfile`, `framework`, `database`, `dbProvider`, `skipDeploy`, `authMode`, `docsUrl`, `browserAgent`, `services`, `sdk`, `research`, `setup`.
+
+**Step 7b — Run the stack setup script.** This copies the right template, appends Makefile targets, and installs dependencies. Must run AFTER `ralph-config.json` is written:
+
+```bash
+bash .claude/skills/ralph-to-ralph-onboard/scripts/setup-stack.sh
+```
+
+If the script fails, show the error to the user and stop — do not proceed to the build loop with a half-installed stack. Verify `.ralph-setup-done` exists afterward.
+
+**Step 7c — Rewrite prompts and finish.** Follow `@references/onboard-prompt.md` starting from **Step 6** (Rewrite inspect-prompt.md) — Steps 3–5 have already been handled above.
 
 When done, launch the build loop:
 
@@ -370,6 +464,7 @@ If Ever CLI is required but not installed, show the install message before launc
 - **Very broad product** (e.g. "clone Notion"): commit to building all of it, set expectations on iteration count.
 - **Non-SaaS product**: explain this is designed for web SaaS, suggest a pivot.
 - **Research fails** (obscure or login-walled): work with what you can find, flag gaps, ask user to fill them in.
-- **Non-technical user**: skip package names. Say "I'll set up the email service" not "I'll install @aws-sdk/client-sesv2".
+- **Non-technical user**: skip package names. Say "I'll set up the email service" not "I'll install @aws-sdk/client-sesv2". Default to the beginner fast track (TypeScript + Next.js) unless they specifically ask for something else.
+- **Beginner who picked "simple"**: after running `scripts/setup-stack.sh`, verify it worked by checking `.ralph-setup-done` exists and the Makefile has real targets appended. If it fails, diagnose and fix manually.
 - **User already has everything set up**: Phase 4.5 verifies everything passes, Phase 5 becomes a one-liner "You're all set — everything's verified and ready." Skip straight to the summary.
 - **User wants to set up missing services mid-interview**: let them. Wait, then continue where you left off.

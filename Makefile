@@ -1,5 +1,19 @@
+# Ralph-to-Ralph Makefile — Universal Contract
+#
+# These targets define the interface between the ralph pipeline and your stack.
+# Onboarding appends real recipes below the guard line based on your stackProfile.
+# Every stack template must implement: dev, build, test, test-e2e, check, clean.
+
 .PHONY: check test test-e2e typecheck lint format fix all dev build clean validate
 .PHONY: check-header test-header check-verbose test-verbose
+.PHONY: db-generate db-migrate db-push
+
+# --- Guard: ensure onboarding has run ---
+SETUP_DONE := $(wildcard .ralph-setup-done)
+
+ifndef SETUP_DONE
+$(error Stack not set up. Run onboarding first: /ralph-to-ralph-onboard)
+endif
 
 # Full validation: check + test
 all: check test
@@ -8,7 +22,7 @@ all: check test
 check: check-header typecheck lint
 
 # TypeScript type checking
-typecheck:
+ typecheck:
 	@. ./hack/run_silent.sh && \
 	run_silent "TypeCheck passed" "npx tsc --noEmit"
 
