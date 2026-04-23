@@ -58,11 +58,11 @@ Rules:
    - Save a screenshot to `ralph/screenshots/build/`
    - Skip this step ONLY for non-UI features (infrastructure, schema, SDK internals)
 8. **E2E Foundation** (first iteration only, or when auth features are built):
-   a. Create `tests/e2e/auth.setup.ts` — Playwright auth fixture that creates a session via a test-only API route (`POST /api/test/create-session`, enabled only in `NODE_ENV=test`). Save state to `tests/e2e/.auth/user.json`.
-   b. Update `playwright.config.ts` with a `setup` project + `storageState` so all E2E tests inherit the authenticated session.
-   c. Create `tests/e2e/smoke.spec.ts` — basic navigation tests (sidebar links, pages load). Keep under 10 tests. Update as you add major pages.
-   d. Add `tests/e2e/.auth/` to `.gitignore`.
-   e. This MUST be done BEFORE any other E2E tests. Do NOT skip this — every E2E test behind auth will fail without it.
+   a. Create the stack-appropriate authenticated E2E setup described by `BUILD_GUIDE.md`.
+   b. If the stack uses Playwright, add a setup project plus stored auth state. If it uses a different E2E runner, wire the equivalent authenticated bootstrap there.
+   c. Add a small smoke suite for primary navigation/pages using the configured E2E framework.
+   d. Ignore generated auth/session artifacts in `.gitignore`.
+   e. This MUST be done BEFORE any auth-walled E2E tests. Do NOT skip it.
 9. Update `prd.json`: set `build_pass: true` ONLY after all tests pass AND browser smoke test passes. Do NOT touch `qa_pass` — that is set by the QA agent.
 10. **Log QA hints** — append to `qa-hints.json` what you tested and what needs deeper QA:
    ```json
@@ -115,10 +115,10 @@ A read-only page with "Add" buttons that don't work is NOT `build_pass`.
 
 ### Infrastructure Features
 For features in the `infrastructure` category:
-- Actually PROVISION the cloud resource (create the S3 bucket, Redis cluster, SES identity, etc.)
-- Verify the resource exists with a real API call (`aws s3 ls`, `redis-cli ping`, etc.)
-- Write the connection details to `.env`
-- Unit tests against mocks are NECESSARY but NOT SUFFICIENT — the real resource must respond to a health check
+- Actually PROVISION the configured cloud resource (for example storage, queue, email, registry, cache)
+- Verify the resource exists with a real provider/API health check
+- Write the connection details to `.env` or the stack's configured runtime config
+- Unit tests against mocks are NECESSARY but NOT SUFFICIENT, the real resource must respond to a health check
 - The feature is not `build_pass` until the provisioned resource is reachable
 
 ### Implementation Rules
@@ -142,7 +142,7 @@ For features in the `infrastructure` category:
 
 ## Authentication
 
-Auth is **P1 priority** — build it before core product features.
+Auth is **P1 priority**, build it before core product features.
 
 ### Stack
 - Implement authentication according to `authMode`, `language`, and `stackProfile` in `ralph-config.json`.
@@ -150,37 +150,17 @@ Auth is **P1 priority** — build it before core product features.
 - Otherwise use the stack-equivalent auth/session mechanism from `BUILD_GUIDE.md`.
 
 ### Implementation
-1. Read `target-docs/auth-flow.md` (from inspect phase) to understand what auth methods to build
-2. Configure `src/lib/auth.ts` with Better Auth:
-   ```ts
-   import { betterAuth } from "better-auth"
-   import { drizzleAdapter } from "better-auth/adapters/drizzle"
-   import { db } from "@/lib/db"
+1. Read `target-docs/auth-flow.md` to understand what auth methods to build.
+2. Implement the stack-appropriate auth/session layer from `BUILD_GUIDE.md`.
+3. Add the app/framework-specific auth routes, callbacks, middleware/guards, and session persistence required by the chosen stack.
+4. Add password reset, email verification, OAuth providers, or magic link support only when the target product requires them.
+5. Build login/signup/auth-management UI that matches the original product's design.
+6. Protect non-auth routes using the chosen stack's route guard or middleware mechanism.
 
-   export const auth = betterAuth({
-     database: drizzleAdapter(db, { provider: "pg" }),
-     emailAndPassword: { enabled: true },  // if target uses email/password
-     socialProviders: {
-       google: { clientId: process.env.AUTH_GOOGLE_ID!, clientSecret: process.env.AUTH_GOOGLE_SECRET! },
-       github: { clientId: process.env.AUTH_GITHUB_ID!, clientSecret: process.env.AUTH_GITHUB_SECRET! },
-     },
-   })
-   ```
-3. Add API route: `src/app/api/auth/[...all]/route.ts`
-4. Generate Drizzle schema with `npx @better-auth/cli generate` — adds `user`, `session`, `account`, `verification` tables
-5. Build login/signup UI in `src/app/(auth)/login/page.tsx` and `src/app/(auth)/signup/page.tsx` — match the original product's design, use Better Auth client (`createAuthClient`)
-6. Add password reset / email verification if the target has them (Better Auth plugins: `emailOTP`, `magicLink`)
-7. Protect all non-auth routes in `src/middleware.ts` using `auth.api.getSession`
-
-### Environment variables to add to `.env.example`
-```
-BETTER_AUTH_SECRET=       # generate with: openssl rand -base64 32
-BETTER_AUTH_URL=          # e.g. http://localhost:3015
-AUTH_GOOGLE_ID=           # if target uses Google OAuth
-AUTH_GOOGLE_SECRET=
-AUTH_GITHUB_ID=           # if target uses GitHub OAuth
-AUTH_GITHUB_SECRET=
-```
+### Environment variables
+- Add the auth-related environment variables required by the chosen stack template and auth mode.
+- If the template uses Better Auth, include `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, and any OAuth provider credentials.
+- Otherwise define the equivalent provider/session secrets required by that stack.
 
 ## Out of Scope
 - Billing, payments, subscriptions
