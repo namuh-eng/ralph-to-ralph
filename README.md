@@ -276,7 +276,7 @@ Yes. If you already have a `prd.json`, you can run the build and QA phases direc
 <details>
 <summary><strong>Can I use this without AWS?</strong></summary>
 
-Yes! During onboarding, you can choose AWS (default), GCP, or Azure as your cloud provider. The onboarding script configures the project for your chosen provider. **Note:** GCP and Azure support is experimental — AWS is the most battle-tested path.
+Yes. The default personal path is Vercel + Neon, and you can also choose AWS, GCP, Azure, or a custom stack during onboarding. **Note:** AWS is the most battle-tested team/production path, while GCP and Azure remain experimental.
 </details>
 
 ## Contributing

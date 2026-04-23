@@ -90,14 +90,13 @@ Edit `.env` with your cloud credentials. At minimum you need:
 The onboarding agent will:
 
 1. **Ask what to clone** — give it any SaaS product URL (e.g., `https://mintlify.com`, `https://linear.app`, `https://resend.com`)
-2. **Ask your stack preference** — AWS (default), GCP (experimental), or Azure (experimental)
+2. **Ask your stack preference** — Vercel + Neon (default), AWS, GCP (experimental), Azure (experimental), or a custom stack
 3. **Research the target** — reads the product's docs, API reference, SDKs, and data model
-4. **Recommend a stack** — maps the target's capabilities to your cloud provider's services
-5. **Ask you to confirm** — shows what it found, lets you adjust
-6. **Generate `ralph-config.json`** — single source of truth for the entire pipeline
-7. **Check dependencies** — verifies CLI tools and credentials are present
-8. **Rewrite config files** — updates schema, preflight script, package.json, prompts, and more
-9. **Install packages and start the loop** — calls `start.sh` automatically
+4. **Map the target onto the chosen stack** — picks the right services and infrastructure shape for that platform
+5. **Generate `ralph-config.json`** — single source of truth for the entire pipeline
+6. **Check dependencies** — verifies CLI tools and credentials are present
+7. **Rewrite config files** — updates schema, preflight script, package.json, prompts, and more
+8. **Install packages and start the loop** — calls `start.sh` automatically
 
 ### 5. Watch it build
 
@@ -114,11 +113,13 @@ No human intervention needed.
 
 | Provider | Status | CLI Required | Auth Check |
 |----------|--------|-------------|------------|
-| AWS | Stable | `aws` | `aws sts get-caller-identity` |
+| Vercel + Neon | Default personal path | `vercel` | `vercel whoami` |
+| AWS | Stable team/production path | `aws` | `aws sts get-caller-identity` |
 | GCP | Experimental | `gcloud` | `gcloud auth print-identity-token` |
 | Azure | Experimental | `az` | `az account show` |
+| Custom | Bring your own stack | Varies | Varies |
 
-GCP and Azure paths generate the correct preflight scripts and SDK dependencies, but have not been battle-tested at the same level as AWS. If you hit issues, please open an issue.
+Vercel + Neon is the easiest personal path. AWS is the most battle-tested shared/team path. GCP and Azure generate the right preflight scripts and SDK dependencies, but have not been battle-tested at the same level as AWS.
 
 ---
 
@@ -130,11 +131,12 @@ The onboarding agent generates `ralph-config.json` — a single file that drives
 {
   "targetUrl": "https://mintlify.com",
   "targetName": "mintlify-clone",
-  "cloudProvider": "aws",
+  "cloudProvider": "vercel",
   "framework": "nextjs",
   "database": "postgres",
+  "deploymentTier": "personal",
   "services": {
-    "storage": { "provider": "s3", "package": "@aws-sdk/client-s3" }
+    "storage": { "provider": "vercel-blob", "package": "@vercel/blob" }
   },
   "sdk": { "enabled": true, "languages": ["node"] },
   "research": {
@@ -160,5 +162,5 @@ Every phase of the loop reads this file. The inspect agent uses it to map featur
 **Tests fail after onboarding**
 → Run `make check && make test` to see what's wrong. The onboarding agent should leave the project in a passing state, but if it doesn't, the error output will guide you.
 
-**Want to change cloud provider after onboarding?**
-→ Delete `ralph-config.json` and re-run `./ralph/onboard.sh`. It will start fresh.
+**Want to change cloud provider or stack after onboarding?**
+→ Delete `ralph-config.json` and re-run `./ralph/onboard.sh`, or run `./ralph/onboard.sh --reset` to fully reset the onboarding state.
