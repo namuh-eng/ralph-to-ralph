@@ -16,6 +16,9 @@ LOCKFILE=".ralph-watchdog.lock"
 LOG_FILE="ralph-watchdog-$(date +%Y%m%d-%H%M%S).log"
 COST_LOG="ralph/cost-log.json"
 FAILURE_LOG="ralph/failure-log.json"
+FINAL_STATUS_FILE="ralph/final-status.json"
+RUN_STATUS="IN_PROGRESS"
+RUN_STATUS_REASON=""
 
 log() { echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
 
@@ -207,10 +210,64 @@ PY
   [ -n "$budget_output" ] && echo "$budget_output"
 
   if [ "$budget_status" -eq 2 ]; then
+    RUN_STATUS="BLOCKED"
+    RUN_STATUS_REASON="Budget exceeded"
     log "BUDGET EXCEEDED — stopping. See $COST_LOG for details."
     print_cost_summary
     exit 1
   fi
+}
+
+write_final_status() {
+  local total qa_passed build_passed exhausted blocked
+  total=$(total_tasks)
+  qa_passed=$($PY -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo "0")
+  build_passed=$(count_passes)
+  exhausted=$($PY - <<'PY' 2>/dev/null || echo "0"
+import json
+from collections import Counter
+try:
+    report = json.load(open('qa-report.json'))
+except Exception:
+    print(0)
+    raise SystemExit
+counts = Counter(item.get('feature_id') for item in report if item.get('feature_id'))
+prd = json.load(open('prd.json'))
+qa_passed = {item['id'] for item in prd if item.get('qa_pass', False)}
+print(sum(1 for fid, count in counts.items() if count >= 3 and fid not in qa_passed))
+PY
+)
+  blocked=$(( total - qa_passed - exhausted ))
+  if [ "$blocked" -lt 0 ]; then
+    blocked=0
+  fi
+
+  _WD_STATUS="$RUN_STATUS" \
+  _WD_REASON="$RUN_STATUS_REASON" \
+  _WD_TOTAL="$total" \
+  _WD_QA="$qa_passed" \
+  _WD_BUILD="$build_passed" \
+  _WD_EXHAUSTED="$exhausted" \
+  _WD_BLOCKED="$blocked" \
+  _WD_LOG="$LOG_FILE" \
+  _WD_FINAL_STATUS_FILE="$FINAL_STATUS_FILE" \
+  $PY - <<'PY'
+import json, os
+payload = {
+    'status': os.environ['_WD_STATUS'],
+    'reason': os.environ['_WD_REASON'],
+    'counts': {
+        'total': int(os.environ['_WD_TOTAL']),
+        'build_passed': int(os.environ['_WD_BUILD']),
+        'qa_passed': int(os.environ['_WD_QA']),
+        'exhausted': int(os.environ['_WD_EXHAUSTED']),
+        'blocked': int(os.environ['_WD_BLOCKED']),
+    },
+    'logFile': os.environ['_WD_LOG'],
+}
+with open(os.environ['_WD_FINAL_STATUS_FILE'], 'w') as f:
+    json.dump(payload, f, indent=2)
+PY
 }
 
 print_cost_summary() {
@@ -621,11 +678,15 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
   TOTAL=$(total_tasks)
 
   if [ "$QA_STATUS" = "true" ] && all_passed; then
+    RUN_STATUS="SUCCESS"
+    RUN_STATUS_REASON="All features built and QA verified"
     log "=== ALL $TOTAL FEATURES: BUILT + QA VERIFIED ($QA_PASSED/$TOTAL qa_pass) ==="
     break
   fi
 
   if [ "$qa_stalled" = true ]; then
+    RUN_STATUS="QA_STALLED"
+    RUN_STATUS_REASON="Repeated QA attempts made zero forward progress"
     log "Phase 3: Cycle $cycle terminated with QA_STALLED. QA passed: $QA_PASSED/$TOTAL. Build passes: $(count_passes)/$TOTAL."
     break
   fi
@@ -640,19 +701,69 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
   fi
 done
 
+if [ "$RUN_STATUS" = "IN_PROGRESS" ]; then
+  if [ "$(qa_complete)" = "true" ] && all_passed; then
+    RUN_STATUS="SUCCESS"
+    RUN_STATUS_REASON="All features built and QA verified"
+  elif all_passed; then
+    RUN_STATUS="INCOMPLETE_QA"
+    RUN_STATUS_REASON="Build completed but QA did not finish"
+  else
+    RUN_STATUS="BUILD_INCOMPLETE"
+    RUN_STATUS_REASON="Build loop ended without all features passing"
+  fi
+fi
+
 cron_backup
+write_final_status
 END_TIME=$(date +%s)
 ELAPSED=$(( END_TIME - START_TIME ))
 HOURS=$(( ELAPSED / 3600 ))
 MINUTES=$(( (ELAPSED % 3600) / 60 ))
 SECONDS_LEFT=$(( ELAPSED % 60 ))
+TOTAL=$(total_tasks)
+BUILD_PASSED=$(count_passes)
+QA_PASSED=$($PY -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo "0")
+EXHAUSTED=$($PY - <<'PY' 2>/dev/null || echo "0"
+import json
+from collections import Counter
+try:
+    report = json.load(open('qa-report.json'))
+except Exception:
+    print(0)
+    raise SystemExit
+counts = Counter(item.get('feature_id') for item in report if item.get('feature_id'))
+prd = json.load(open('prd.json'))
+qa_passed = {item['id'] for item in prd if item.get('qa_pass', False)}
+print(sum(1 for fid, count in counts.items() if count >= 3 and fid not in qa_passed))
+PY
+)
+BLOCKED=$(( TOTAL - QA_PASSED - EXHAUSTED ))
+if [ "$BLOCKED" -lt 0 ]; then
+  BLOCKED=0
+fi
+
 log ""
 log "========================================="
-log "  RALPH-TO-RALPH COMPLETE"
-log "  Features: $(count_passes)/$(total_tasks) passed"
+log "  RALPH-TO-RALPH ${RUN_STATUS}"
+log "  Reason: ${RUN_STATUS_REASON}"
+log "  Build passed: ${BUILD_PASSED}/${TOTAL}"
+log "  QA passed: ${QA_PASSED}/${TOTAL}"
+log "  Exhausted: ${EXHAUSTED}"
+log "  Blocked: ${BLOCKED}"
 log "  QA Report: qa-report.json"
+log "  Final Status: ${FINAL_STATUS_FILE}"
 log "  End time: $(date '+%Y-%m-%d %H:%M:%S')"
 log "  Duration: ${HOURS}h ${MINUTES}m ${SECONDS_LEFT}s"
 log "  Cost Summary:"
 print_cost_summary | while IFS= read -r line; do log "$line"; done
 log "========================================="
+
+case "$RUN_STATUS" in
+  SUCCESS)
+    exit 0
+    ;;
+  *)
+    exit 1
+    ;;
+esac
