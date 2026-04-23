@@ -121,11 +121,7 @@ case "$LANGUAGE" in
       if command -v python3 >/dev/null 2>&1; then
         if python3 -m pip --version >/dev/null 2>&1; then
           if [ -f pyproject.toml ]; then
-            if [ -f setup.py ] || [ -f setup.cfg ]; then
-              python3 -m pip install -e ".[dev]"
-            else
-              python3 -m pip install ".[dev]"
-            fi
+            python3 -m pip install ".[dev]"
           else
             python3 -m pip install -r requirements.txt
           fi
@@ -135,21 +131,13 @@ case "$LANGUAGE" in
         fi
       elif command -v pip3 >/dev/null 2>&1; then
         if [ -f pyproject.toml ]; then
-          if [ -f setup.py ] || [ -f setup.cfg ]; then
-            pip3 install -e ".[dev]"
-          else
-            pip3 install ".[dev]"
-          fi
+          pip3 install ".[dev]"
         else
           pip3 install -r requirements.txt
         fi
       elif command -v pip >/dev/null 2>&1; then
         if [ -f pyproject.toml ]; then
-          if [ -f setup.py ] || [ -f setup.cfg ]; then
-            pip install -e ".[dev]"
-          else
-            pip install ".[dev]"
-          fi
+          pip install ".[dev]"
         else
           pip install -r requirements.txt
         fi
