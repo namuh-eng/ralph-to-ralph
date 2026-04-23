@@ -358,7 +358,7 @@ The watchdog orchestrator automatically restarts failed phases (up to 5 times fo
 <details>
 <summary><strong>Can I use this without AWS?</strong></summary>
 
-Yes. During onboarding, choose Vercel (default), GCP, or Azure as your cloud provider. The onboarding script configures the project for your chosen provider. Vercel + Neon is the easiest path (free tier, zero ops). GCP and Azure support is experimental.
+Yes. The default personal path is Vercel + Neon, and you can also choose AWS, GCP, Azure, or a custom stack during onboarding. **Note:** AWS is the most battle-tested team/production path, while GCP and Azure remain experimental.
 </details>
 
 <details>

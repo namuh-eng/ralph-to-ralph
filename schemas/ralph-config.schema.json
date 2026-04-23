@@ -1,0 +1,141 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ralph-config.schema.json",
+  "title": "RalphConfig",
+  "description": "Single source of truth for a ralph-to-ralph clone project",
+  "type": "object",
+  "required": ["targetUrl", "targetName", "cloudProvider", "framework", "database"],
+  "additionalProperties": true,
+  "properties": {
+    "targetUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL of the product being cloned"
+    },
+    "targetName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable name of the target product"
+    },
+    "cloneName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Name for the clone project"
+    },
+    "cloudProvider": {
+      "type": "string",
+      "enum": ["aws", "gcp", "azure", "vercel", "custom"],
+      "description": "Cloud deployment provider"
+    },
+    "framework": {
+      "type": "string",
+      "enum": ["nextjs", "remix", "vite", "express", "custom"],
+      "description": "Frontend/fullstack framework"
+    },
+    "database": {
+      "type": "string",
+      "enum": ["postgres", "mysql", "sqlite", "mongodb", "custom"],
+      "description": "Database technology"
+    },
+    "authMode": {
+      "type": "string",
+      "enum": ["api-key", "better-auth"],
+      "default": "api-key",
+      "description": "Authentication mode: api-key for personal use, better-auth for multi-user"
+    },
+    "stackProfile": {
+      "type": "string",
+      "description": "Named stack profile used during onboarding (e.g. 'nextjs-postgres', 'remix-sqlite')"
+    },
+    "services": {
+      "type": "object",
+      "description": "Cloud services required by the clone",
+      "additionalProperties": true,
+      "properties": {
+        "storage": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "provider": { "type": "string" },
+            "bucket": { "type": "string" }
+          }
+        },
+        "email": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "provider": { "type": "string" },
+            "fromAddress": { "type": "string" }
+          }
+        },
+        "queue": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "provider": { "type": "string" }
+          }
+        },
+        "search": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "provider": { "type": "string" }
+          }
+        },
+        "cache": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "provider": { "type": "string" }
+          }
+        }
+      }
+    },
+    "browserAgent": {
+      "type": "string",
+      "enum": ["ever", "playwright", "stagehand", "custom"],
+      "default": "ever",
+      "description": "Browser automation agent for QA and inspection phases"
+    },
+    "skipDeployment": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, skip cloud deployment setup — only provision local dev dependencies"
+    },
+    "testAccount": {
+      "type": "object",
+      "description": "Test account credentials for QA (stored by reference to .env vars)",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "provider": { "type": "string", "enum": ["google", "github", "email"] }
+      }
+    },
+    "setup": {
+      "type": "object",
+      "description": "System dependency verification results written by onboard.sh",
+      "properties": {
+        "verified": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "pending": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "checks": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "command": { "type": "string" },
+              "envVar": { "type": "string" },
+              "status": { "type": "string", "enum": ["pass", "fail", "skip"] },
+              "detail": { "type": "string" },
+              "error": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -3,6 +3,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const templateDbIndex =
+  "../.claude/skills/ralph-to-ralph-onboard/templates/typescript-nextjs/src/lib/db/index";
+
 // Mock pg module to capture Pool constructor args
 vi.mock("pg", () => {
   const MockPool = vi.fn();
@@ -13,9 +16,6 @@ vi.mock("pg", () => {
 vi.mock("drizzle-orm/node-postgres", () => ({
   drizzle: vi.fn(() => ({})),
 }));
-
-// Mock schema to avoid importing real tables
-vi.mock("@/lib/db/schema", () => ({}));
 
 describe("db/index.ts SSL configuration", () => {
   beforeEach(() => {
@@ -32,7 +32,7 @@ describe("db/index.ts SSL configuration", () => {
     vi.stubEnv("DATABASE_URL", "postgresql://localhost:5432/test");
 
     const { Pool } = await import("pg");
-    await import("@/lib/db/index");
+    await import(templateDbIndex);
 
     expect(Pool).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -47,7 +47,7 @@ describe("db/index.ts SSL configuration", () => {
     delete process.env.DB_SSL;
 
     const { Pool } = await import("pg");
-    await import("@/lib/db/index");
+    await import(templateDbIndex);
 
     expect(Pool).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -61,7 +61,7 @@ describe("db/index.ts SSL configuration", () => {
     vi.stubEnv("DATABASE_URL", "postgresql://localhost:5432/test");
 
     const { Pool } = await import("pg");
-    await import("@/lib/db/index");
+    await import(templateDbIndex);
 
     expect(Pool).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -79,7 +79,7 @@ describe("db/index.ts SSL configuration", () => {
     delete process.env.DB_SSL;
 
     const { Pool } = await import("pg");
-    await import("@/lib/db/index");
+    await import(templateDbIndex);
 
     expect(Pool).toHaveBeenCalledWith(
       expect.objectContaining({

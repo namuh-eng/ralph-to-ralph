@@ -39,3 +39,18 @@ db-push:
 
 clean:
 	rm -rf .next dist node_modules/.cache
+
+down:
+	docker compose -f docker-compose.dev.yml down
+
+logs:
+	docker compose -f docker-compose.dev.yml logs -f
+
+# Integration tests (real DB, not mocks)
+test-integration:
+	@. ./hack/run_silent.sh && \
+	run_silent_with_test_count "Integration Tests passed" "npx vitest run --config vitest.config.ts --reporter=verbose tests/integration" "vitest"
+
+# Drizzle Studio
+db-studio:
+	npx drizzle-kit studio --config drizzle.config.ts

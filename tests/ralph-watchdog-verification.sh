@@ -96,21 +96,24 @@ EOF
 
 chmod +x "$TMP_DIR/ralph/inspect-ralph.sh" "$TMP_DIR/ralph/build-ralph.sh" "$TMP_DIR/ralph/qa-ralph.sh"
 
-cat > "$TMP_DIR/bin/make" <<'EOF'
+cat > "$TMP_DIR/bin/fail-check.sh" <<'EOF'
 #!/bin/bash
 cd "$(dirname "$0")/.."
 touch make-called
-if [ "${1:-}" = "check" ]; then
-  exit 1
-fi
-exit 0
+exit 1
 EOF
 
-chmod +x "$TMP_DIR/bin/make"
+chmod +x "$TMP_DIR/bin/fail-check.sh"
 
 (
   cd "$TMP_DIR"
-  PATH="$TMP_DIR/bin:/usr/bin:/bin:/usr/sbin:/sbin" MAX_CYCLES=1 ./ralph/ralph-watchdog.sh "https://example.com" >/dev/null 2>&1 || true
+  PATH="$TMP_DIR/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+  MAX_CYCLES=1 \
+  WATCHDOG_VERIFY_CHECK_CMD="$TMP_DIR/bin/fail-check.sh" \
+  WATCHDOG_VERIFY_TEST_CMD=":" \
+  WATCHDOG_VERIFY_BUILD_CMD=":" \
+  WATCHDOG_VERIFY_DOCKER_CMD=":" \
+  ./ralph/ralph-watchdog.sh "https://example.com" >/dev/null 2>&1 || true
 )
 
 assert_file_exists "$TMP_DIR/make-called"

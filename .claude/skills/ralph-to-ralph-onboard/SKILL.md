@@ -127,13 +127,22 @@ Their answer changes the deployment target recommendation, how much you explain 
 > 2. **Let me choose the stack** — I'll ask more questions about language and architecture"
 
 If they pick **"Yes, keep it simple"**:
-- Write `ralph-config.json` with `language: "typescript"`, `stackProfile: "dashboard-app"`, `authMode: "api-key"`
-- Run the setup script:
-  ```bash
-  bash .claude/skills/ralph-to-ralph-onboard/scripts/setup-stack.sh
+- Record these defaults in memory (do NOT write the file yet — Phase 7 writes the full
+  unified schema after research + final confirmation):
   ```
-- Tell them: "All set — TypeScript + Next.js is installed. You've got a running app at localhost:3015."
-- **Skip Question 2 through Question 3 below** — jump straight to Phase 4.5 (Verify Setup) with a reduced checklist (runtime, database, and Anthropic key).
+  language: "typescript"
+  stackProfile: "dashboard-app"
+  framework: "nextjs"
+  database: "postgres"
+  cloudProvider: "vercel"
+  deploymentTier: "personal"
+  dbProvider: "neon"
+  authMode: "api-key"
+  browserAgent: "ever"
+  skipDeploy: false
+  ```
+- Tell them: "Got it — TypeScript + Next.js on Vercel + Neon. I'll finish the checks and install, then we're building."
+- **Skip Question 2 through Question 3 below** — jump straight to Phase 4.5 (Verify Setup) with a reduced checklist (runtime, database, and Anthropic key), then skip to Phase 7 (Implement).
 
 If they pick **"Let me choose"**, or picked scale 2 or 3, continue with the full interview below.
 
@@ -188,13 +197,7 @@ If `language` is not `typescript` (e.g., Go, Python, Rust), and the target produ
 
 Record as `frontend` in ralph-config.json. If the language is `typescript`, skip this — the frontend framework is the same as the backend.
 
-After collecting language + stackProfile (+ frontend if applicable), write `ralph-config.json` and run setup:
-
-```bash
-bash .claude/skills/ralph-to-ralph-onboard/scripts/setup-stack.sh
-```
-
-The setup script reads `ralph-config.json`, picks the right template from `templates/`, copies config files, appends Makefile targets, and installs dependencies. If no template exists for the chosen combination, tell the user the build agent will scaffold it during the first build iteration.
+Record these values in memory. **Do not** write `ralph-config.json` or run `setup-stack.sh` here — Phase 7 handles both after research + final confirmation. Writing early produces incomplete config (missing `setup` section, `services`, `docsUrl`, etc.) and scaffolds the wrong stack if the user changes their mind later.
 
 ### Question 3: Existing CLI / Account Setup
 
@@ -419,14 +422,24 @@ The summary must reflect actual verification results from Phase 4.5 — show ✓
 
 ## Phase 7: Implement
 
-Follow the steps in @references/onboard-prompt.md, starting from **Step 3** (Technical Architecture Scan).
-
 You already have the answers to Steps 1 and 2 from the conversation — use them directly, don't ask again.
 
 Narrate progress so the user isn't staring at a blank screen:
 - "Writing ralph-config.json..."
-- "Installing dependencies..." (run npm install in background)
+- "Installing stack template..." (setup-stack.sh copies configs + installs deps)
 - "Rewriting config files..."
+
+**Step 7a — Write the unified config.** Use the Bash tool + a Python heredoc (see `onboard-prompt.md` Step 5 for the full schema) to write `ralph-config.json` with every field: `targetUrl`, `targetName`, `cloudProvider`, `deploymentTier`, `language`, `stackProfile`, `framework`, `database`, `dbProvider`, `skipDeploy`, `authMode`, `docsUrl`, `browserAgent`, `services`, `sdk`, `research`, `setup`.
+
+**Step 7b — Run the stack setup script.** This copies the right template, appends Makefile targets, and installs dependencies. Must run AFTER `ralph-config.json` is written:
+
+```bash
+bash .claude/skills/ralph-to-ralph-onboard/scripts/setup-stack.sh
+```
+
+If the script fails, show the error to the user and stop — do not proceed to the build loop with a half-installed stack. Verify `.ralph-setup-done` exists afterward.
+
+**Step 7c — Rewrite prompts and finish.** Follow `@references/onboard-prompt.md` starting from **Step 6** (Rewrite inspect-prompt.md) — Steps 3–5 have already been handled above.
 
 When done, launch the build loop:
 
