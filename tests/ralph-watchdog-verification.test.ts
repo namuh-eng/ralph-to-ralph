@@ -308,11 +308,118 @@ exit 0
     };
 
     expect(exitCode).toBe(1);
-    expect(log).toContain("RALPH-TO-RALPH INCOMPLETE_QA");
+    expect(log).toContain("RALPH-TO-RALPH BUILD_INCOMPLETE");
     expect(log).not.toContain("RALPH-TO-RALPH COMPLETE");
-    expect(finalStatus.status).toBe("INCOMPLETE_QA");
+    expect(finalStatus.status).toBe("BUILD_INCOMPLETE");
     expect(finalStatus.counts.build_passed).toBe(1);
     expect(finalStatus.counts.qa_passed).toBe(0);
     expect(finalStatus.counts.blocked).toBe(1);
+  });
+
+  it("treats exhausted QA features as terminal instead of relaunching QA forever", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "prd.json"),
+      JSON.stringify(
+        [
+          {
+            id: "feature-1",
+            description: "Test feature",
+            build_pass: true,
+            qa_pass: false,
+          },
+        ],
+        null,
+        2,
+      ),
+    );
+
+    fs.writeFileSync(
+      path.join(tmpDir, "qa-report-summary.json"),
+      JSON.stringify(
+        {
+          schema_version: "2.1",
+          totals: {
+            features_total: 1,
+            features_passed: 0,
+            features_failed: 0,
+            features_exhausted: 1,
+            features_crashed: 0,
+          },
+          sub_phase_totals: {},
+          features: [
+            {
+              feature_id: "feature-1",
+              qa_pass: false,
+              attempts: 5,
+              exhausted: true,
+              overall_status: "partial",
+              sub_phases: {},
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    );
+
+    fs.writeFileSync(
+      path.join(tmpDir, "ralph/build-ralph.sh"),
+      `#!/bin/bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+`,
+      { mode: 0o755 },
+    );
+
+    fs.writeFileSync(
+      path.join(tmpDir, "ralph/qa-ralph.sh"),
+      `#!/bin/bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+touch .qa-ran
+exit 0
+`,
+      { mode: 0o755 },
+    );
+
+    let exitCode = 0;
+    try {
+      execFileSync("bash", ["ralph/ralph-watchdog.sh", "https://example.com"], {
+        cwd: tmpDir,
+        env: {
+          ...process.env,
+          MAX_CYCLES: "1",
+          MAX_BUILD_RESTARTS: "1",
+          MAX_QA_RESTARTS: "1",
+          MAX_INSPECT_RESTARTS: "1",
+          WATCHDOG_VERIFY_CHECK_CMD: "true",
+          WATCHDOG_VERIFY_TEST_CMD: "true",
+          WATCHDOG_VERIFY_BUILD_CMD: "true",
+        },
+        encoding: "utf8",
+      });
+    } catch (error) {
+      exitCode = (error as { status?: number }).status ?? 1;
+    }
+
+    const log = fs.readFileSync(
+      path.join(tmpDir, fs.readdirSync(tmpDir).find((f) => f.startsWith("ralph-watchdog-") && f.endsWith(".log"))!),
+      "utf8",
+    );
+    const finalStatus = JSON.parse(
+      fs.readFileSync(path.join(tmpDir, "ralph/final-status.json"), "utf8"),
+    ) as {
+      status: string;
+      counts: { build_passed: number; qa_passed: number; exhausted: number; blocked: number };
+    };
+
+    expect(exitCode).toBe(1);
+    expect(fs.existsSync(path.join(tmpDir, ".qa-ran"))).toBe(false);
+    expect(log).toContain("QA reached terminal completion without full pass coverage");
+    expect(finalStatus.status).toBe("INCOMPLETE_QA");
+    expect(finalStatus.counts.build_passed).toBe(1);
+    expect(finalStatus.counts.qa_passed).toBe(0);
+    expect(finalStatus.counts.exhausted).toBe(1);
+    expect(finalStatus.counts.blocked).toBe(0);
   });
 });
