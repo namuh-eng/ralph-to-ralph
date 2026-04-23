@@ -338,6 +338,35 @@ else:
 " 2>/dev/null || echo "false"
 }
 
+qa_progress_snapshot() {
+  $PY - <<'PY' 2>/dev/null || echo "0:0:0"
+import json
+from pathlib import Path
+
+qa_passed = 0
+qa_remaining = 0
+qa_report_entries = 0
+
+try:
+    prd = json.load(open('prd.json'))
+    qa_passed = sum(1 for item in prd if item.get('qa_pass', False))
+    qa_remaining = sum(1 for item in prd if not item.get('qa_pass', False))
+except Exception:
+    pass
+
+qa_report_path = Path('qa-report.json')
+if qa_report_path.exists():
+    try:
+        qa_report = json.load(open(qa_report_path))
+        if isinstance(qa_report, list):
+            qa_report_entries = len(qa_report)
+    except Exception:
+        pass
+
+print(f"{qa_passed}:{qa_remaining}:{qa_report_entries}")
+PY
+}
+
 reset_pass_flags() {
   local reset_counts
   reset_counts=$($PY -c "
@@ -451,6 +480,10 @@ done
 # ─── PHASE 2 + 3: Build → QA → Fix loop ───
 
 MAX_CYCLES="${MAX_CYCLES:-5}"
+QA_STALL_THRESHOLD="${QA_STALL_THRESHOLD:-3}"
+qa_stall_count=0
+qa_stalled=false
+
 for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
   log ""
   log "===== CYCLE $cycle/$MAX_CYCLES ====="
@@ -524,13 +557,18 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
   while [ "$(qa_complete)" != "true" ] && [ "$qa_restarts" -lt "$MAX_QA_RESTARTS" ]; do
     qa_restarts=$((qa_restarts + 1))
     QA_SO_FAR=$($PY -c "import json; print(sum(1 for x in json.load(open('prd.json')) if x.get('qa_pass', False)))" 2>/dev/null || echo "0")
+    QA_BEFORE_SNAPSHOT=$(qa_progress_snapshot)
     check_time_budget
     log "Phase 3: Running QA... $QA_SO_FAR/$(total_tasks) passed (attempt $qa_restarts/$MAX_QA_RESTARTS)"
 
+    QA_START_EPOCH=$(date +%s)
     PHASE_LOG_TMP=$(mktemp)
     ./ralph/qa-ralph.sh "$TARGET_URL" 2>&1 | tee -a "$LOG_FILE" > "$PHASE_LOG_TMP" || true
     QA_EXIT=${PIPESTATUS[0]}
+    QA_END_EPOCH=$(date +%s)
+    QA_RUNTIME=$(( QA_END_EPOCH - QA_START_EPOCH ))
     LOG_TAIL=$(tail -80 "$PHASE_LOG_TMP")
+    QA_AFTER_SNAPSHOT=$(qa_progress_snapshot)
 
     COST_INFO=$(update_cost "qa" "qa_cycle_${cycle}" "$LOG_TAIL")
     BUDGET_CHECK=$(check_budget 2>&1 || true)
@@ -538,6 +576,24 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
       log "BUDGET WARNING: $BUDGET_CHECK"
     fi
     rm -f "$PHASE_LOG_TMP"
+
+    IFS=':' read -r QA_BEFORE_PASSED QA_BEFORE_REMAINING QA_BEFORE_REPORTS <<< "$QA_BEFORE_SNAPSHOT"
+    IFS=':' read -r QA_AFTER_PASSED QA_AFTER_REMAINING QA_AFTER_REPORTS <<< "$QA_AFTER_SNAPSHOT"
+
+    QA_PROGRESS_MADE=false
+    if [ "$QA_AFTER_PASSED" -gt "$QA_BEFORE_PASSED" ] || \
+       [ "$QA_AFTER_REMAINING" -lt "$QA_BEFORE_REMAINING" ] || \
+       [ "$QA_AFTER_REPORTS" -gt "$QA_BEFORE_REPORTS" ]; then
+      QA_PROGRESS_MADE=true
+    fi
+
+    if [ "$QA_PROGRESS_MADE" = true ]; then
+      qa_stall_count=0
+      log "Phase 3: QA made forward progress (qa_pass ${QA_BEFORE_PASSED}->${QA_AFTER_PASSED}, remaining ${QA_BEFORE_REMAINING}->${QA_AFTER_REMAINING}, reports ${QA_BEFORE_REPORTS}->${QA_AFTER_REPORTS}, runtime=${QA_RUNTIME}s)."
+    else
+      qa_stall_count=$((qa_stall_count + 1))
+      log "Phase 3: QA made no forward progress (qa_pass=${QA_AFTER_PASSED}, remaining=${QA_AFTER_REMAINING}, reports=${QA_AFTER_REPORTS}, runtime=${QA_RUNTIME}s, stall=${qa_stall_count}/${QA_STALL_THRESHOLD})."
+    fi
 
     if [ "$(qa_complete)" != "true" ]; then
       FAILURE_INFO=$(analyze_failure "qa" "qa_cycle_${cycle}" "$QA_EXIT" "$LOG_TAIL")
@@ -549,6 +605,14 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
       fi
     fi
 
+    if [ "$QA_PROGRESS_MADE" = false ] && [ "$qa_stall_count" -ge "$QA_STALL_THRESHOLD" ]; then
+      qa_stalled=true
+      log "Phase 3: QA_STALLED after $qa_stall_count consecutive zero-progress attempts. Remaining QA work: $QA_AFTER_REMAINING features."
+      log "Phase 3: Stopping honestly instead of relaunching QA with no forward motion."
+      cron_backup
+      break
+    fi
+
     cron_backup
   done
 
@@ -558,6 +622,11 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
 
   if [ "$QA_STATUS" = "true" ] && all_passed; then
     log "=== ALL $TOTAL FEATURES: BUILT + QA VERIFIED ($QA_PASSED/$TOTAL qa_pass) ==="
+    break
+  fi
+
+  if [ "$qa_stalled" = true ]; then
+    log "Phase 3: Cycle $cycle terminated with QA_STALLED. QA passed: $QA_PASSED/$TOTAL. Build passes: $(count_passes)/$TOTAL."
     break
   fi
 

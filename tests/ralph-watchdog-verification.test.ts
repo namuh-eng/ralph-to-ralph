@@ -133,4 +133,82 @@ touch .qa-ran
     expect(prd[0]?.build_pass).toBe(false);
     expect(prd[0]?.qa_pass).toBe(false);
   });
+
+  it("stops with QA_STALLED after repeated zero-progress QA attempts", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "prd.json"),
+      JSON.stringify(
+        [
+          {
+            id: "feature-1",
+            description: "Test feature",
+            build_pass: true,
+            qa_pass: false,
+          },
+        ],
+        null,
+        2,
+      ),
+    );
+
+    fs.writeFileSync(
+      path.join(tmpDir, "ralph/build-ralph.sh"),
+      `#!/bin/bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+`,
+      { mode: 0o755 },
+    );
+
+    fs.writeFileSync(
+      path.join(tmpDir, "ralph/qa-ralph.sh"),
+      `#!/bin/bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+count_file=".qa-invocations"
+count=0
+if [ -f "$count_file" ]; then
+  count=$(cat "$count_file")
+fi
+count=$((count + 1))
+printf '%s' "$count" > "$count_file"
+exit 0
+`,
+      { mode: 0o755 },
+    );
+
+    execFileSync("bash", ["ralph/ralph-watchdog.sh", "https://example.com"], {
+      cwd: tmpDir,
+      env: {
+        ...process.env,
+        MAX_CYCLES: "3",
+        MAX_BUILD_RESTARTS: "1",
+        MAX_QA_RESTARTS: "5",
+        MAX_INSPECT_RESTARTS: "1",
+        QA_STALL_THRESHOLD: "2",
+        WATCHDOG_VERIFY_CHECK_CMD: "true",
+        WATCHDOG_VERIFY_TEST_CMD: "true",
+        WATCHDOG_VERIFY_BUILD_CMD: "true",
+      },
+      encoding: "utf8",
+    });
+
+    const qaInvocations = fs.readFileSync(
+      path.join(tmpDir, ".qa-invocations"),
+      "utf8",
+    );
+    const log = fs.readFileSync(
+      path.join(tmpDir, fs.readdirSync(tmpDir).find((f) => f.startsWith("ralph-watchdog-") && f.endsWith(".log"))!),
+      "utf8",
+    );
+    const prd = JSON.parse(
+      fs.readFileSync(path.join(tmpDir, "prd.json"), "utf8"),
+    ) as Array<{ build_pass?: boolean; qa_pass?: boolean }>;
+
+    expect(qaInvocations).toBe("2");
+    expect(log).toContain("QA_STALLED");
+    expect(log).toContain("Stopping honestly instead of relaunching QA with no forward motion.");
+    expect(prd[0]?.build_pass).toBe(true);
+    expect(prd[0]?.qa_pass).toBe(false);
+  });
 });
