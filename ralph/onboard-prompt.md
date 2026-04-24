@@ -350,7 +350,7 @@ Rewrite these files based on `ralph-config.json`. Each rewrite replaces the enti
 Regenerate for the chosen cloud provider using the templates below.
 
 ### 7d: pre-setup.md
-Regenerate the "AWS Infrastructure" section to match the chosen cloud provider. Keep all other sections (Tooling, Commands, Project Structure, Port) unchanged.
+Regenerate the provider-specific infrastructure section to match the chosen cloud provider. Keep all other sections (Tooling, Commands, Project Structure, Port) unchanged.
 
 If AWS:
 ```markdown
@@ -392,7 +392,7 @@ Rewrite the prompt so it starts with a stack-context header that tells future ag
 Rewrite the prompt so it starts with a stack-context header and prefers `make` targets plus `BUILD_GUIDE.md` over hardcoded framework commands. Keep any TypeScript/AWS examples clearly labeled as examples, not universal instructions.
 
 ### 7h: Optional cloud SDK packages
-Only if the clone actually needs services beyond what the template installs (for example: AWS SES for email, S3 for storage). Use the bash tool to add them via `npm install <pkg>@latest`. This runs AFTER `setup-stack.sh` in the wrapper, so `package.json` already exists.
+Only if the clone actually needs services beyond what the template installs (for example: provider SDKs for email, storage, or queues). Use the package manager appropriate to the chosen stack/template after `setup-stack.sh` has populated the project. Prefer stack-native package installation commands over assuming `npm`.
 
 ---
 

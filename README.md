@@ -295,9 +295,9 @@ The pipeline produces a **fully functional, deployed product** — not a mockup.
 | Database | Postgres (ORM depends on language) | Always |
 | Unit + E2E tests | Stack-specific test runner + E2E framework | Always |
 | Deployment | Docker + cloud provider | Always (unless `skipDeploy: true`) |
-| Email delivery | AWS SES / SendGrid | If the target sends emails |
+| Email delivery | Provider-appropriate email service (for example SES / SendGrid / Azure Communication Services) | If the target sends emails |
 | DNS management | Cloudflare API | If the target manages domains |
-| File storage | AWS S3 / Cloud Storage | If the target handles uploads |
+| File storage | Provider-appropriate object storage (for example S3 / Cloud Storage / Blob Storage) | If the target handles uploads |
 | SDK package | Language-native SDK | If the target has an SDK |
 
 ---
@@ -358,7 +358,7 @@ The watchdog orchestrator automatically restarts failed phases (up to 5 times fo
 <details>
 <summary><strong>Can I use this without AWS?</strong></summary>
 
-Yes. The default personal path is Vercel + Neon, and you can also choose AWS, GCP, Azure, or a custom stack during onboarding. **Note:** AWS is the most battle-tested team/production path, while GCP and Azure remain experimental.
+Yes. The default personal path is Vercel + Neon, and you can also choose AWS, GCP, Azure, or a custom stack during onboarding. Provider maturity still varies by template and product shape, but the pipeline now supports multiple stack paths instead of only one hardcoded default.
 </details>
 
 <details>

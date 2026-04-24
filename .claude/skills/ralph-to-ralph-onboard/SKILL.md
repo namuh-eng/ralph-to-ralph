@@ -353,9 +353,9 @@ Example format:
 Services needed:
   ✓ Vercel CLI — already set up
   ✓ Neon — already have account
-  → AWS SES — need to set up (15 min)
-    This is how we send emails. You'll need an AWS account and to verify your
-    sending domain. I'll automate the provisioning — you just need credentials.
+  → Email provider — need to set up (15 min)
+    This product needs outbound email. I'll map this to the chosen provider and
+    automate as much provisioning as the stack supports. You just need credentials.
   → Svix — need account (2 min)
     Handles outbound webhooks to your users. Free tier at svix.com.
 ```
@@ -375,8 +375,8 @@ By now you know their scale, what they have, and what they need. Just fill in th
 
 2. **Deployment target** — recommend based on their scale answer:
    - Personal → Vercel + Neon (easiest, free tier, zero ops)
-   - Team → Vercel + Neon or AWS ECS Fargate + RDS (more setup, right for real traffic)
-   - Production → AWS ECS Fargate + RDS recommended
+   - Team → Vercel + Neon or a provider-managed container/database path (more setup, right for real traffic)
+   - Production → recommend the most battle-tested provider path available for the chosen stack today
    
    But always let them override.
 
@@ -407,7 +407,7 @@ Clone name:     resend-clone
 Scale:          Personal / hobby
 Stack:          Vercel + Neon, current default web template
 Verified:       ✓ Vercel CLI, ✓ Neon, ✓ Node 22, ✓ Anthropic key
-Pending:        ✗ AWS SES (15 min), ✗ Svix (2 min)
+Pending:        ✗ Email provider setup (15 min), ✗ Svix (2 min)
 Browser agent:  Ever CLI
 Deploy:         Local only
 
