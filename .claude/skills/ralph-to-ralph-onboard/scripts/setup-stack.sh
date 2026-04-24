@@ -32,6 +32,8 @@ resolve_template() {
     typescript-content-app)   echo "typescript-nextjs" ;;
     typescript-realtime-app)  echo "typescript-nextjs" ;;
     typescript-platform)      echo "typescript-nextjs" ;;
+    python-api-service)       echo "python-fastapi" ;;
+    go-api-service)           echo "go-chi" ;;
     *) echo "${lang}-${profile}" ;;
   esac
 }
@@ -48,14 +50,21 @@ fi
 
 echo "==> Setting up stack: ${LANGUAGE} / ${STACK_PROFILE} (template: ${TEMPLATE_NAME})"
 
-# --- 1. Copy config files from template to repo root ---
-echo "  Copying config files..."
-for f in package.json tsconfig.json biome.json drizzle.config.ts vitest.config.ts playwright.config.ts Dockerfile .dockerignore next.config.js next-env.d.ts tailwind.config.ts postcss.config.js; do
-  if [ -f "${TEMPLATE_DIR}/${f}" ]; then
-    cp "${TEMPLATE_DIR}/${f}" "${REPO_ROOT}/${f}"
-    echo "    → ${f}"
-  fi
-done
+# --- 1. Copy template root files to repo root ---
+echo "  Copying template root files..."
+while IFS= read -r template_file; do
+  rel_path="${template_file#${TEMPLATE_DIR}/}"
+
+  case "$rel_path" in
+    src/*|.gitignore-append|makefile-targets.mk)
+      continue
+      ;;
+  esac
+
+  mkdir -p "${REPO_ROOT}/$(dirname "$rel_path")"
+  cp "$template_file" "${REPO_ROOT}/${rel_path}"
+  echo "    → ${rel_path}"
+done < <(find "$TEMPLATE_DIR" -type f | sort)
 
 # --- 2. Copy source scaffolding (src/, preserving existing files) ---
 if [ -d "${TEMPLATE_DIR}/src" ]; then
@@ -109,8 +118,34 @@ case "$LANGUAGE" in
     fi
     ;;
   python)
-    if [ -f pyproject.toml ]; then
-      pip install -e ".[dev]" || pip install -r requirements.txt || true
+    if [ -f pyproject.toml ] || [ -f requirements.txt ]; then
+      if command -v python3 >/dev/null 2>&1; then
+        if python3 -m pip --version >/dev/null 2>&1; then
+          if [ -f pyproject.toml ]; then
+            python3 -m pip install ".[dev]"
+          else
+            python3 -m pip install -r requirements.txt
+          fi
+        else
+          echo "ERROR: python3 is installed but pip is unavailable."
+          exit 1
+        fi
+      elif command -v pip3 >/dev/null 2>&1; then
+        if [ -f pyproject.toml ]; then
+          pip3 install ".[dev]"
+        else
+          pip3 install -r requirements.txt
+        fi
+      elif command -v pip >/dev/null 2>&1; then
+        if [ -f pyproject.toml ]; then
+          pip install ".[dev]"
+        else
+          pip install -r requirements.txt
+        fi
+      else
+        echo "ERROR: Python dependencies requested but no pip installer was found."
+        exit 1
+      fi
     fi
     ;;
   rust)

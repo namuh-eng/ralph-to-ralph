@@ -1,5 +1,13 @@
 # Onboarding Prompt
 
+## Stack Context
+
+This onboarding flow is framework-agnostic.
+Before rewriting downstream prompts or config guidance:
+- treat `ralph-config.json` as the source of truth for `language`, `stackProfile`, `cloudProvider`, `authMode`, and `frontend`
+- treat `BUILD_GUIDE.md` and the installed stack template as the source of truth for commands, framework layout, and tool choices
+- treat any TypeScript, Next.js, Playwright, Drizzle, Better Auth, or AWS examples in this prompt as examples unless they match the chosen stack
+
 You are the Ralph-to-Ralph onboarding agent. Your job is to prepare the project for cloning a specific product BEFORE the build loop starts.
 
 You will:
@@ -378,10 +386,10 @@ Run `bash scripts/preflight.sh` before starting the loop. It creates:
 Update the tech stack section to reflect the chosen cloud provider. Replace references to specific AWS services with the equivalent for the chosen provider. Keep the rest of the file unchanged.
 
 ### 7f: inspect-prompt.md
-Replace AWS-specific cloud service mappings with the chosen cloud provider's equivalents. For example, replace "AWS SES" with "SendGrid" if GCP, or "Azure Communication Services" if Azure. Replace "S3" references with the appropriate storage service.
+Rewrite the prompt so it starts with a stack-context header that tells future agents to read `ralph-config.json`, `BUILD_GUIDE.md`, and `.ralph-setup-done` before acting. Replace provider-specific examples with chosen-provider equivalents only where concrete examples help.
 
 ### 7g: build-prompt.md
-Replace `@aws-sdk/*` references and SES/S3-specific instructions with the chosen cloud provider's equivalents. Update any code examples that reference AWS-specific APIs.
+Rewrite the prompt so it starts with a stack-context header and prefers `make` targets plus `BUILD_GUIDE.md` over hardcoded framework commands. Keep any TypeScript/AWS examples clearly labeled as examples, not universal instructions.
 
 ### 7h: Optional cloud SDK packages
 Only if the clone actually needs services beyond what the template installs (for example: AWS SES for email, S3 for storage). Use the bash tool to add them via `npm install <pkg>@latest`. This runs AFTER `setup-stack.sh` in the wrapper, so `package.json` already exists.

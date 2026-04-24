@@ -23,6 +23,10 @@ fi
 ITERATIONS="${1:-999}"
 
 [ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./ralph/onboard.sh first."; exit 1; }
+[ -f BUILD_GUIDE.md ] || { echo "ERROR: BUILD_GUIDE.md not found. Run ./ralph/onboard.sh first."; exit 1; }
+
+STACK_PROFILE=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('stackProfile', 'unknown'))" 2>/dev/null || echo "unknown")
+LANGUAGE=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('language', 'unknown'))" 2>/dev/null || echo "unknown")
 
 if [ ! -f "prd.json" ]; then
   echo "Error: prd.json not found. Run inspect-ralph.sh first."
@@ -36,6 +40,8 @@ fi
 
 echo "=== RALPH-TO-RALPH: Phase 2 (Build) ==="
 echo "Iterations: $ITERATIONS"
+echo "Stack: $LANGUAGE / $STACK_PROFILE"
+echo "Build contract: read BUILD_GUIDE.md, prefer make targets over stack-specific CLIs"
 echo ""
 
 # Initialize
@@ -154,6 +160,11 @@ for ((i=1; i<=$ITERATIONS; i++)); do
 ITERATION: $i of $ITERATIONS
 PROGRESS: $PASSES/$TOTAL features build_pass
 MODE: REBUILD — This feature previously failed QA. Read the failure context below carefully.
+STACK_CONTEXT:
+- Read ralph-config.json for language, stackProfile, cloudProvider, authMode, frontend
+- Read BUILD_GUIDE.md before touching commands, file paths, or test frameworks
+- Prefer make targets (make check, make test, make test-e2e, make build, make dev)
+- Treat any TypeScript/Next.js examples in prompts as examples only, not requirements
 
 $QA_CONTEXT
 
@@ -181,6 +192,11 @@ Output <promise>COMPLETE</promise> only if ALL features pass.")
 
 ITERATION: $i of $ITERATIONS
 PROGRESS: $PASSES/$TOTAL features build_pass
+STACK_CONTEXT:
+- Read ralph-config.json for language, stackProfile, cloudProvider, authMode, frontend
+- Read BUILD_GUIDE.md before choosing commands, framework paths, or test locations
+- Prefer make targets (make check, make test, make test-e2e, make build, make dev)
+- Treat any TypeScript/Next.js examples in prompts as examples only, not requirements
 
 Build exactly ONE feature (the first build_pass:false entry), then commit, push, and stop.
 Output <promise>NEXT</promise> when done with this feature.

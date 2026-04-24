@@ -121,9 +121,9 @@ Their answer changes the deployment target recommendation, how much you explain 
 
 **If they pick 1 (Personal/hobby)**, offer the beginner fast track:
 
-> "Since this is personal, want me to set things up as a simple app? Most people start with TypeScript + Next.js — one codebase, easy to understand.
+> "Since this is personal, want me to set things up with the simplest supported default template first?
 >
-> 1. **Yes, keep it simple** — TypeScript + Next.js, perfect for getting started
+> 1. **Yes, keep it simple** — use the current default template so we can get building quickly
 > 2. **Let me choose the stack** — I'll ask more questions about language and architecture"
 
 If they pick **"Yes, keep it simple"**:
@@ -141,7 +141,7 @@ If they pick **"Yes, keep it simple"**:
   browserAgent: "ever"
   skipDeploy: false
   ```
-- Tell them: "Got it — TypeScript + Next.js on Vercel + Neon. I'll finish the checks and install, then we're building."
+- Tell them: "Got it — I'll use the current default template on Vercel + Neon, finish the checks and install, then we're building."
 - **Skip Question 2 through Question 3 below** — jump straight to Phase 4.5 (Verify Setup) with a reduced checklist (runtime, database, and Anthropic key), then skip to Phase 7 (Implement).
 
 If they pick **"Let me choose"**, or picked scale 2 or 3, continue with the full interview below.
@@ -165,7 +165,7 @@ This determines how the build agent implements authentication. Save it to `ralph
 If the user didn't take the beginner fast track, ask about their preferred language:
 
 > "What language do you want to build in?
-> 1. **TypeScript** — most templates available, best for web apps (Next.js, Express, Fastify)
+> 1. **TypeScript** — broadest current template support, great default for web apps
 > 2. **Go** — great for APIs and backend services (chi, echo)
 > 3. **Python** — good for data-heavy or AI products (FastAPI, Django)
 > 4. **Rust** — for performance-critical services (Axum, Actix)
@@ -191,7 +191,7 @@ Record as `stackProfile` in ralph-config.json.
 If `language` is not `typescript` (e.g., Go, Python, Rust), and the target product has a UI, ask:
 
 > "Since [target] has a web UI, what do you want for the frontend?
-> 1. **Next.js** — React-based, most popular
+> 1. **Default web frontend** — use the currently supported frontend path
 > 2. **None** — API-only, no frontend needed
 > 3. **Other** — tell me what you want"
 
@@ -405,7 +405,7 @@ Then show a summary:
 Target:         https://resend.com
 Clone name:     resend-clone
 Scale:          Personal / hobby
-Stack:          Vercel + Neon, Next.js, Drizzle ORM
+Stack:          Vercel + Neon, current default web template
 Verified:       ✓ Vercel CLI, ✓ Neon, ✓ Node 22, ✓ Anthropic key
 Pending:        ✗ AWS SES (15 min), ✗ Svix (2 min)
 Browser agent:  Ever CLI
@@ -464,7 +464,7 @@ If Ever CLI is required but not installed, show the install message before launc
 - **Very broad product** (e.g. "clone Notion"): commit to building all of it, set expectations on iteration count.
 - **Non-SaaS product**: explain this is designed for web SaaS, suggest a pivot.
 - **Research fails** (obscure or login-walled): work with what you can find, flag gaps, ask user to fill them in.
-- **Non-technical user**: skip package names. Say "I'll set up the email service" not "I'll install @aws-sdk/client-sesv2". Default to the beginner fast track (TypeScript + Next.js) unless they specifically ask for something else.
+- **Non-technical user**: skip package names. Say "I'll set up the email service" not "I'll install @aws-sdk/client-sesv2". Default to the beginner fast track using the current supported default template unless they specifically ask for something else.
 - **Beginner who picked "simple"**: after running `scripts/setup-stack.sh`, verify it worked by checking `.ralph-setup-done` exists and the Makefile has real targets appended. If it fails, diagnose and fix manually.
 - **User already has everything set up**: Phase 4.5 verifies everything passes, Phase 5 becomes a one-liner "You're all set — everything's verified and ready." Skip straight to the summary.
 - **User wants to set up missing services mid-interview**: let them. Wait, then continue where you left off.
