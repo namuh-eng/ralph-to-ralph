@@ -47,6 +47,12 @@
       "type": "string",
       "description": "Named stack profile used during onboarding (e.g. 'nextjs-postgres', 'remix-sqlite')"
     },
+    "deploymentProfile": {
+      "type": "string",
+      "enum": ["fast-starter", "production-aws", "advanced-custom"],
+      "default": "fast-starter",
+      "description": "The target operational profile: fast-starter (minimal ops), production-aws (hardened AWS), advanced-custom (pluggable)"
+    },
     "services": {
       "type": "object",
       "description": "Cloud services required by the clone",

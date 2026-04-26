@@ -1,0 +1,44 @@
+{
+  "fast-starter": {
+    "name": "Fast Starter",
+    "description": "Minimal ops burden, fastest path to a working clone. Best for experimenting.",
+    "targets": ["vercel", "railway", "fly-io"],
+    "requirements": {
+      "observability": "minimal",
+      "scaling": "vertical",
+      "verification_level": "smoke"
+    },
+    "default_stack": {
+      "framework": "nextjs",
+      "database": "postgres",
+      "provider": "vercel"
+    }
+  },
+  "production-aws": {
+    "name": "Production AWS",
+    "description": "AWS-oriented topology with RDS, S3, ECR, and strong operational hygiene.",
+    "targets": ["aws-app-runner", "aws-fargate"],
+    "requirements": {
+      "observability": "full-structured",
+      "reliability": ["health-checks", "queues", "migrations"],
+      "scaling": "horizontal",
+      "verification_level": "comprehensive"
+    },
+    "default_stack": {
+      "framework": "nextjs",
+      "database": "postgres",
+      "provider": "aws"
+    }
+  },
+  "advanced-custom": {
+    "name": "Advanced Custom",
+    "description": "Pluggable provider decisions and flexible infra adapter layer.",
+    "targets": ["any"],
+    "requirements": {
+      "observability": "configurable",
+      "reliability": "configurable",
+      "scaling": "configurable",
+      "verification_level": "custom"
+    }
+  }
+}

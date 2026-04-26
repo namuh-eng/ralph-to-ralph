@@ -241,14 +241,19 @@ fi
 
 # ── Detect saved Q&A answers from a previous interrupted run ──
 _SKIP_QA=false
+DEPLOYMENT_PROFILE="fast-starter"
+
 if [ -f ".onboard-answers.tmp" ] && [ ! -f "ralph-config.json" ]; then
   # shellcheck source=/dev/null
   source .onboard-answers.tmp
+  # Ensure DEPLOYMENT_PROFILE is set for older tmp files
+  DEPLOYMENT_PROFILE="${DEPLOYMENT_PROFILE:-fast-starter}"
   echo "Found saved answers from a previous run:"
-  echo "  Target:  $TARGET_URL"
-  echo "  Clone:   $CLONE_NAME"
-  echo "  Stack:   $CLOUD_PROVIDER${CUSTOM_STACK_DESC:+ (custom: $CUSTOM_STACK_DESC)}"
-  echo "  Auth:    $AUTH_MODE"
+  echo "  Target:   $TARGET_URL"
+  echo "  Clone:    $CLONE_NAME"
+  echo "  Profile:  $DEPLOYMENT_PROFILE"
+  echo "  Stack:    $CLOUD_PROVIDER${CUSTOM_STACK_DESC:+ (custom: $CUSTOM_STACK_DESC)}"
+  echo "  Auth:     $AUTH_MODE"
   echo ""
   read -rp "Resume with these? [Y/n]: " _RESUME_ANSWERS
   if [[ "${_RESUME_ANSWERS:-y}" =~ ^[Yy] ]]; then
@@ -357,30 +362,53 @@ else
 fi
 
 echo ""
+echo "Select a deployment profile:"
+echo ""
+echo "  1) Fast Starter      (minimal ops, managed platform, vertical scaling)"
+echo "  2) Production AWS    (RDS, S3, ECR, horizontal scaling, strong hygiene)"
+echo "  3) Advanced Custom   (pluggable provider and infra adapter layer)"
+echo ""
+read -rp "Choose profile [1]: " PROFILE_CHOICE
+case "${PROFILE_CHOICE:-1}" in
+  2|prod|production|aws) DEPLOYMENT_PROFILE="production-aws" ;;
+  3|advanced|custom)     DEPLOYMENT_PROFILE="advanced-custom" ;;
+  *)                     DEPLOYMENT_PROFILE="fast-starter" ;;
+esac
+
+echo ""
 echo "Where should this clone run?"
 echo ""
-echo "  1) Vercel + Neon  (default — personal / solo dev)"
-echo "     Deploy with 'vercel'. Serverless Postgres via Neon."
-echo "     Free tier, zero ops. Best for building and experimenting."
+if [ "$DEPLOYMENT_PROFILE" = "fast-starter" ]; then
+  echo "  1) Vercel + Neon  (default — personal / solo dev)"
+  echo "     Deploy with 'vercel'. Serverless Postgres via Neon."
+  echo "     Free tier, zero ops. Best for building and experimenting."
+else
+  echo "  1) AWS — ECS Fargate + RDS"
+  echo "     Private VPC, ALB, RDS in private subnets."
+  echo "     Right architecture for shared use or real traffic."
+fi
 echo ""
-echo "  2) AWS — ECS Fargate + RDS  (team / production)"
-echo "     Private VPC, ALB, RDS in private subnets."
-echo "     Right architecture for shared use or real traffic."
-echo ""
-echo "  3) GCP  (experimental)"
-echo "  4) Azure  (experimental)"
-echo "  5) Custom — describe your own stack"
+echo "  2) GCP  (experimental)"
+echo "  3) Azure  (experimental)"
+echo "  4) Custom — describe your own stack"
 echo ""
 read -rp "Choose stack [1]: " STACK_CHOICE
 STACK_CHOICE="${STACK_CHOICE//[[:space:]]/}"  # strip whitespace
 CUSTOM_STACK_DESC=""
 GENERATOR="claude"
 case "${STACK_CHOICE:-1}" in
-  1|vercel) CLOUD_PROVIDER="vercel"; DEPLOYMENT_TIER="personal" ;;
-  2|aws)    CLOUD_PROVIDER="aws";    DEPLOYMENT_TIER="team" ;;
-  3|gcp)    CLOUD_PROVIDER="gcp";    DEPLOYMENT_TIER="team" ;;
-  4|azure)  CLOUD_PROVIDER="azure";  DEPLOYMENT_TIER="team" ;;
-  5|custom)
+  1)
+    if [ "$DEPLOYMENT_PROFILE" = "fast-starter" ]; then
+      CLOUD_PROVIDER="vercel"; DEPLOYMENT_TIER="personal"
+    else
+      CLOUD_PROVIDER="aws";    DEPLOYMENT_TIER="team"
+    fi
+    ;;
+  vercel)    CLOUD_PROVIDER="vercel"; DEPLOYMENT_TIER="personal" ;;
+  aws)       CLOUD_PROVIDER="aws";    DEPLOYMENT_TIER="team" ;;
+  2|gcp)     CLOUD_PROVIDER="gcp";    DEPLOYMENT_TIER="team" ;;
+  3|azure)   CLOUD_PROVIDER="azure";  DEPLOYMENT_TIER="team" ;;
+  4|custom)
     CLOUD_PROVIDER="custom"
     DEPLOYMENT_TIER="custom"
     echo ""
@@ -692,6 +720,7 @@ STACK_PROFILE="dashboard-app"
   printf 'DOCS_URL=%q\n'         "${DOCS_URL:-}"
   printf 'LANGUAGE=%q\n'         "$LANGUAGE"
   printf 'STACK_PROFILE=%q\n'    "$STACK_PROFILE"
+  printf 'DEPLOYMENT_PROFILE=%q\n' "$DEPLOYMENT_PROFILE"
 } > .onboard-answers.tmp
 
 echo ""
@@ -701,6 +730,7 @@ if [ -n "${DOCS_URL:-}" ]; then
   echo "Docs URL:  $DOCS_URL"
 fi
 echo "Clone:     $CLONE_NAME"
+echo "Profile:   $DEPLOYMENT_PROFILE"
 echo "Cloud:     $CLOUD_PROVIDER"
 echo "Language:  $LANGUAGE (scripted default template)"
 echo "Stack:     $STACK_PROFILE (scripted default template)"
@@ -741,6 +771,7 @@ result=$(timeout 1800 claude -p --dangerously-skip-permissions --model claude-op
 The user has already provided their answers:
 - Target URL: $TARGET_URL
 - Clone name: $CLONE_NAME
+- Deployment profile: $DEPLOYMENT_PROFILE (fast-starter = minimal ops; production-aws = hardened AWS; advanced-custom = user-defined)
 - Cloud provider: $CLOUD_PROVIDER
 - Deployment tier: $DEPLOYMENT_TIER (personal = Vercel + Neon; team = ECS Fargate + RDS private VPC / GCP / Azure; custom = user-defined)
 - Custom stack description: ${CUSTOM_STACK_DESC:-(none)}
@@ -790,7 +821,7 @@ elif [[ "$result" == *"<promise>ONBOARD_COMPLETE</promise>"* ]]; then
   $PY -c "
 import json, sys
 c = json.load(open('ralph-config.json'))
-required = ['targetUrl', 'targetName', 'cloudProvider', 'framework', 'database', 'language', 'stackProfile']
+required = ['targetUrl', 'targetName', 'cloudProvider', 'framework', 'database', 'language', 'stackProfile', 'deploymentProfile']
 missing = [k for k in required if k not in c]
 if missing:
     print(f'ERROR: ralph-config.json missing required fields: {missing}', file=sys.stderr)

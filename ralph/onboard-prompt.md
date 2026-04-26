@@ -139,6 +139,7 @@ Write the file `ralph-config.json` with this exact schema:
 {
   "targetUrl": "https://example.com",
   "targetName": "example-clone",
+  "deploymentProfile": "fast-starter",
   "cloudProvider": "aws",
   "deploymentTier": "personal",
   "language": "typescript",
@@ -190,7 +191,8 @@ Write the file `ralph-config.json` with this exact schema:
 
 The `setup` section is optional for backwards compatibility — older configs without it are still valid. When present, the build loop can check `setup.pending` to warn about missing prerequisites before starting.
 
-**Required fields:** `targetUrl`, `targetName`, `cloudProvider`, `framework`, `database`, `language`, `stackProfile`.
+**Required fields:** `targetUrl`, `targetName`, `deploymentProfile`, `cloudProvider`, `framework`, `database`, `language`, `stackProfile`.
+**Valid deploymentProfile values:** `fast-starter`, `production-aws`, `advanced-custom`.
 **Valid cloudProvider values:** `vercel`, `aws`, `gcp`, `azure`, `custom`.
 **Valid deploymentTier values:** `personal`, `team`.
 - `language`: `typescript` | `go` | `python` | `rust` — selects the stack template under `.claude/skills/ralph-to-ralph-onboard/templates/`. The wrapper passes this in; do not guess.
@@ -200,8 +202,9 @@ The `setup` section is optional for backwards compatibility — older configs wi
 - `testAccount`: `{ "provider": "google", "email": "user@gmail.com" }` — Google account for auth during build/QA testing. The build and QA agents use this to log in via Google OAuth instead of attempting email/magic-link auth (which requires email delivery). Should be the Google account the user's browser is already logged into, so Ever CLI can complete OAuth flows automatically.
 
 **Stack rules:**
+- `deploymentProfile: "fast-starter"` → Minimal ops, fastest path. Managed platforms (Vercel, Railway, etc.), vertical scaling, basic observability. Best for builders prioritizing speed and experimentation.
+- `deploymentProfile: "production-aws"` → Hardened AWS topology. Managed RDS/S3/ECR, horizontal scaling (Fargate), structured logging, health checks, versioned migrations. For builders prioritizing operational hygiene and scale.
 - `cloudProvider: "vercel"` + `deploymentTier: "personal"` → deploy via Vercel CLI, database is Neon serverless Postgres (`dbProvider: "neon"`). No VPC, no cloud CLI needed beyond `vercel`. Best for personal/solo use.
-- `cloudProvider: "aws"` + `deploymentTier: "team"` → ECS Fargate + ALB + private VPC, RDS in private subnet (`dbProvider: "rds"`).
 - `cloudProvider: "gcp"` or `"azure"` → always `deploymentTier: "team"`, use respective preflight templates.
 - `cloudProvider: "custom"` → set `deploymentTier: "custom"`, derive `dbProvider` and `services` from the user's stack description. If `generator` is `"claude"`: write `scripts/preflight.sh` from scratch (see Custom Preflight guidelines below). If `generator` is `"codex"`: skip preflight — Codex generates it after your session.
 
