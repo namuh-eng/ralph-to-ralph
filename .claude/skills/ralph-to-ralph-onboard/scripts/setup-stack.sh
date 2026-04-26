@@ -78,6 +78,10 @@ if [ -d "${TEMPLATE_DIR}/src" ]; then
   fi
 fi
 
+# --- 2.5 Ensure essential directories exist ---
+mkdir -p "${REPO_ROOT}/public"
+touch "${REPO_ROOT}/public/.gitkeep"
+
 # --- 3. Append .gitignore entries ---
 if [ -f "${TEMPLATE_DIR}/.gitignore-append" ]; then
   echo "  Updating .gitignore..."
