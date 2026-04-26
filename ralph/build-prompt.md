@@ -30,14 +30,25 @@ Rules:
 1. Read `build-spec.md` for the overall architecture and build order.
 2. Read `build-progress.txt` to see what has been done.
 3. Read `prd.json` — pick the FIRST entry where `build_pass` is false.
-4. **Write tests based on the feature's `behavior` and `ui_details`** (TDD):
-   - Use the test framework and file layout from `BUILD_GUIDE.md`
-   - Write the smallest focused failing test first, using your stack's unit/integration/E2E tools
-   - Prefer project `make` targets when available
-   - If the stack template preconfigures a test runner, use it, do not reinstall it
-   - Do NOT run the full suite for the red step, save that for the green step
-5. **Implement the feature:**
-   - Match the original product's UI as closely as possible
+4. **Determine Implementation Strategy:**
+   - **If `needs_structure: true` AND `.qrspi/{feature-id}/structure.md` does NOT exist:**
+     - You must first PLAN the vertical slices.
+     - Invoke the `structure` phase: analyze the feature and produce the structure outline.
+     - Write the outline to `.qrspi/{feature-id}/structure.md`.
+     - Output `<promise>NEXT</promise>` and stop.
+   - **If `.qrspi/{feature-id}/structure.md` EXISTS:**
+     - Build the feature INCREMENTALLY.
+     - Pick the FIRST phase in the outline where `Done: [ ]` is NOT marked.
+     - Implement that phase ONLY (Vertical slice: DB + API + UI + Tests).
+     - Run `make check && make test` (and `make test-e2e` if applicable).
+     - If all green, commit your changes.
+     - Mark the phase as `Done: [x]` in the structure outline and commit the outline update.
+     - If more phases remain, output `<promise>NEXT</promise>` and stop.
+     - If this was the last phase, set `build_pass: true` in `prd.json`, output `<promise>NEXT</promise>`, and stop.
+   - **Otherwise (Simple feature):**
+     - Build the entire feature in this iteration.
+     - Follow the standard TDD and Browser Smoke Test rules below.
+     - After all tests pass, set `build_pass: true` and commit.
    - Use `behavior` and `ui_details` fields in prd.json for guidance
    - Check `ralph/screenshots/inspect/` for visual reference
    - **Auth-walled features**: If the feature requires authentication to test, use Google OAuth with the test account from `.env` (`TEST_ACCOUNT_EMAIL`). Do NOT attempt magic link or email-based auth during build-phase testing — it requires email delivery infrastructure. Use Google OAuth to get past the auth wall, then test the actual feature.

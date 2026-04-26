@@ -81,10 +81,14 @@ fi
 # --- 2.5 Ensure essential directories exist ---
 mkdir -p "${REPO_ROOT}/public"
 touch "${REPO_ROOT}/public/.gitkeep"
+mkdir -p "${REPO_ROOT}/.qrspi"
+touch "${REPO_ROOT}/.qrspi/.gitkeep"
 
 # --- 3. Append .gitignore entries ---
 if [ -f "${TEMPLATE_DIR}/.gitignore-append" ]; then
   echo "  Updating .gitignore..."
+  # Ensure .qrspi is gitignored locally if not already
+  grep -qxF ".qrspi/" .gitignore 2>/dev/null || echo ".qrspi/" >> .gitignore
   # Only append lines not already present
   while IFS= read -r line; do
     [ -z "$line" ] && continue

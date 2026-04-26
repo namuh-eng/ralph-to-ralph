@@ -221,10 +221,17 @@ Array of feature entries, each with:
   "data_model": "Fields and types from forms/tables",
   "priority": 1,
   "core": true,
-  "passes": false,
+  "needs_structure": true,
   "dependent_on": ["infra-001", "design-001"]
 }
 ```
+
+**`needs_structure`** — set to `true` for complex features that cannot be built and verified in a single pass. Examples:
+- Multi-step onboarding flows or wizards.
+- Core app layout with complex state management.
+- Auth setup with multiple providers and session logic.
+- Complex settings pages with many sub-sections.
+When `true`, the build agent will break the feature into vertical slices before coding.
 
 **DO NOT include test specs in prd.json.** The build agent writes its own tests based on `behavior` and `ui_details`. After building, the build agent logs what it tested and what needs deeper QA in `qa-hints.json` — the QA agent reads those hints.
 

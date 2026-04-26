@@ -41,6 +41,11 @@
       "default": false,
       "description": "Set to true by QA agent after successful manual/automated verification"
     },
+    "needs_structure": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, require vertical structure planning before implementation. Set for complex features with >5 verification steps or >2 user flows."
+    },
     "dependencies": {
       "type": "array",
       "items": { "type": "string" },
