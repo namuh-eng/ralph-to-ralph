@@ -101,7 +101,7 @@ Examples only, substitute based on the configured stack and provider:
 - Email: SES / SendGrid / Azure Communication Services
 - Database: provider-managed Postgres or the configured database layer
 - File storage: S3 / Cloud Storage / Blob Storage
-- Deployment: App Runner / Cloud Run / Azure Container Apps or the configured target
+- Deployment: ECS Fargate (AWS) / Cloud Run (GCP) / Azure Container Apps or the configured target
 - Queues/events: provider-native queues/events when needed
 - Image registry: ECR / Artifact Registry / ACR
 
@@ -138,6 +138,10 @@ For features in the `infrastructure` category:
 
 ### Deployment
 - Deploy via the configured deployment target for the chosen provider and stack.
+- **AWS Target:** Prefer ECS Fargate + ALB + ECR.
+- **Health Checks:** The `/api/health` endpoint must return **HTTP 200** for liveness even if the database is not yet reachable. Report degraded status in the JSON response body. This prevents the orchestrator from killing the container during startup.
+- **Deploy Script:** When generating `scripts/deploy.sh`, ensure all required runtime env vars are passed through, specifically `DB_SSL`, `DATABASE_URL`, and any provider-specific SDK keys.
+- **Two-Pass Deploy:** If the stack uses client-side env vars that require the production URL (e.g., `NEXT_PUBLIC_APP_URL` in Next.js), perform a two-pass deploy: first deploy to get the stable URL, then rebuild and redeploy with that URL baked in.
 - Final iteration should deploy and output the live URL.
 
 ## Authentication

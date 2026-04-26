@@ -359,7 +359,7 @@ If AWS:
 ```markdown
 ## AWS Infrastructure (provision with scripts/preflight.sh)
 Run `bash scripts/preflight.sh` before starting the loop. It creates:
-- **RDS Postgres** — database instance, connection string added to `.env`
+- **RDS Postgres** — database instance, connection string added to `.env`. **Important:** Set `DB_SSL=true` for managed RDS connections.
 - **S3** — storage bucket with CORS (if needed)
 - **ECR** — Docker image repository
 - **SES** — email identity verification (if needed)
