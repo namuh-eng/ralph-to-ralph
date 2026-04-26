@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "architecture-decision.schema.json",
+  "title": "ArchitectureDecision",
+  "description": "A concrete architectural decision made during the design phase",
+  "type": "object",
+  "required": ["id", "title", "decision", "rationale", "evidence"],
+  "additionalProperties": true,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What was decided (the 'what')"
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why this decision was made (the 'why')"
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Specific findings from the inspect phase that support this decision (screenshots, docs, API routes)"
+    },
+    "impact": {
+      "type": "string",
+      "description": "Affected components, files, or infrastructure"
+    }
+  }
+}

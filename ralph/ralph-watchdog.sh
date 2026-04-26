@@ -498,6 +498,10 @@ inspect_done() {
   [ -f ".inspect-complete" ]
 }
 
+architecture_done() {
+  [ -f "ralph/architecture-decisions.json" ]
+}
+
 cron_backup() {
   git add -A 2>/dev/null
   git commit -m "watchdog backup $(date '+%H:%M') — $(count_passes)/$(total_tasks) passes" 2>/dev/null || true
@@ -559,6 +563,31 @@ while ! inspect_done; do
     sleep 5
   fi
 done
+
+# ─── PHASE 1.5: Architecture Design ───
+
+if inspect_done && ! architecture_done; then
+  log "Phase 1.5: Designing product architecture..."
+  check_time_budget
+
+  PHASE_LOG_TMP=$(mktemp)
+  # Invoke architect agent
+  claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
+    "@ralph/architecture-prompt.md @prd.json @target-docs/INDEX.md @ralph-config.json" \
+    2>&1 | tee -a "$LOG_FILE" > "$PHASE_LOG_TMP" || true
+  
+  LOG_TAIL=$(tail -50 "$PHASE_LOG_TMP")
+  COST_INFO=$(update_cost "architecture" "architecture" "$LOG_TAIL")
+  rm -f "$PHASE_LOG_TMP"
+
+  if ! architecture_done; then
+    log "Phase 1.5: Architecture design failed or incomplete. Check logs."
+    # We don't abort here; build will just use default build-spec.md if it exists
+  else
+    log "Phase 1.5: Architecture design complete. decisions written to ralph/architecture-decisions.json"
+  fi
+  cron_backup
+fi
 
 # ─── PHASE 2 + 3: Build → QA → Fix loop ───
 
