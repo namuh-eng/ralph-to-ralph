@@ -32,8 +32,10 @@ get_qa_timeout() {
 }
 
 [ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./ralph/onboard.sh first."; exit 1; }
+[ -f BUILD_GUIDE.md ] || { echo "ERROR: BUILD_GUIDE.md not found. Run ./ralph/onboard.sh first."; exit 1; }
 BROWSER_AGENT=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
 STACK_PROFILE=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('stackProfile', 'unknown'))" 2>/dev/null || echo "unknown")
+LANGUAGE=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('language', 'unknown'))" 2>/dev/null || echo "unknown")
 
 # Stack-specific QA hints injected into the Codex prompt. Non-JS stacks skip axe-core.
 case "$STACK_PROFILE" in
@@ -76,7 +78,9 @@ fi
 
 echo "=== RALPH-TO-RALPH: Phase 3 (QA with Codex) ==="
 echo "Target: ${TARGET_URL:-none}"
+echo "Stack: $LANGUAGE / $STACK_PROFILE"
 echo "Sub-phases: progressive (base + category-specific modules)"
+echo "Command contract: prefer make targets and BUILD_GUIDE.md over hardcoded stack CLIs"
 echo ""
 
 # Initialize
@@ -123,8 +127,12 @@ else
 fi
 sleep 5
 
-# Run Playwright regression suite first
-if [ -f "playwright.config.ts" ] || [ -d "tests/e2e" ]; then
+# Run stack-defined E2E regression suite first when available
+if grep -qE '^test-e2e:' Makefile 2>/dev/null; then
+  echo "--- Running E2E regression suite via make test-e2e ---"
+  make test-e2e 2>&1 || echo "Some E2E tests failed — QA agent will investigate."
+  echo ""
+elif [ -f "playwright.config.ts" ] || [ -d "tests/e2e" ]; then
   echo "--- Running Playwright regression suite ---"
   npx playwright test --reporter=list 2>&1 || echo "Some Playwright tests failed — QA agent will investigate."
   echo ""
@@ -508,8 +516,13 @@ done
 
 # Run full E2E regression at the end
 echo ""
-echo "--- Running final Playwright regression suite ---"
-npx playwright test --reporter=list 2>&1 || echo "Some Playwright tests failed in final regression."
+if grep -qE '^test-e2e:' Makefile 2>/dev/null; then
+  echo "--- Running final E2E regression suite via make test-e2e ---"
+  make test-e2e 2>&1 || echo "Some E2E tests failed in final regression."
+else
+  echo "--- Running final Playwright regression suite ---"
+  npx playwright test --reporter=list 2>&1 || echo "Some Playwright tests failed in final regression."
+fi
 echo ""
 
 # Final summary update

@@ -32,41 +32,32 @@ The original product is your **source of truth**.
 ## SUB-PHASE A: FUNCTIONAL
 
 ### Step A1: Automated checks
-Run `make test` to verify unit tests still pass. Fix any failures before proceeding.
-Run smoke E2E: `npx playwright test tests/e2e/smoke.spec.ts`
+Run `make test` to verify project tests still pass. Fix any failures before proceeding.
+Run the stack's smoke E2E suite using the command from `BUILD_GUIDE.md` or `make test-e2e` when available.
 
 <important if="your fix touched shared code (layout, API client, auth middleware, routing, reusable components)">
-Also run full `make test-e2e` to catch cross-feature regressions.
+Also run the stack's full end-to-end regression suite to catch cross-feature regressions.
 </important>
 
-### Playwright E2E Auth Setup (CRITICAL)
-Playwright E2E tests run in a clean browser with NO cookies. If E2E tests fail because they redirect to `/login`, you MUST set up a Playwright auth fixture:
+### Authenticated E2E Setup (CRITICAL)
+Authenticated E2E tests run in a clean client with no session state. If E2E tests fail because they redirect to `/login`, you MUST set up the stack-appropriate authenticated test fixture.
 
-1. **Create `tests/e2e/auth.setup.ts`** (if it doesn't exist) — a setup project that:
-   - Navigates to `/login`
-   - Logs in via Google OAuth using the test account from `ralph-config.json` (`testAccount.email`)
-   - Saves the authenticated browser state to `tests/e2e/.auth/user.json`
-2. **Update `playwright.config.ts`** (if not already done) to:
-   - Add a `setup` project that runs `auth.setup.ts` first
-   - Set `storageState: 'tests/e2e/.auth/user.json'` in the default project
-   - Make the default project depend on `setup`
-3. **Add `tests/e2e/.auth/` to `.gitignore`**
+1. Create the auth bootstrap recommended by `BUILD_GUIDE.md` for the configured E2E runner.
+2. Reuse saved authenticated state/session artifacts if the stack supports that.
+3. Add generated auth/session artifacts to `.gitignore`.
 
-If Google OAuth is too complex for Playwright (it involves third-party redirects), use this alternative:
-- Create a test API route `POST /api/test/create-session` (only enabled when `NODE_ENV=test`) that creates a Better Auth session directly in the database and returns the session cookie
-- Call this route in the auth setup to get a valid session without going through OAuth
+If third-party OAuth is too brittle for automated E2E, use a test-only session bootstrap route or equivalent stack-safe test helper.
 
-**Do NOT skip this step.** Every E2E test behind an auth wall will fail without it. Do NOT weaken tests by removing auth checks — fix the test infrastructure instead.
+**Do NOT skip this step.** Every auth-walled E2E test will fail without real session setup. Do NOT weaken tests by removing auth checks, fix the test infrastructure instead.
 
 ### Step A2: Authenticate Before Testing
 Start dev server if not running (`make dev`).
 Open clone in Ever CLI: `ever start --url http://localhost:3015` (reuse existing session if running).
 **Check if you're logged in** — navigate to any app page. If redirected to `/login`, authenticate first:
-   - Read `TEST_ACCOUNT_EMAIL` from `.env` for the Google account to use. If not set, check `ralph-config.json` for `testAccount.provider`.
-   - **Always use Google OAuth** (click "Continue with Google" and select the test account email) unless you are SPECIFICALLY testing email/magic-link auth (e.g. `auth-002`).
-   - Do NOT test magic link auth as part of general feature QA — that flow requires email delivery and should only be tested in its own dedicated feature.
+   - Read the preferred test account/provider details from `.env` or `ralph-config.json`.
+   - Use the primary auth method configured for this stack and target product.
+   - Do not treat magic-link/email delivery flows as general feature QA unless this feature is specifically about that auth flow.
    - After logging in, verify the session is active before proceeding with feature tests.
-   - If `TEST_ACCOUNT_EMAIL` is not in `.env`, use whichever Google account the browser is already logged into.
 
 ### Step A3: Manual Verification (Ever CLI)
 Test the feature thoroughly:
@@ -100,7 +91,7 @@ Test the full authentication flow end-to-end:
 - Submit the forgot password form — does the reset email send?
 - Use the reset link — does it allow setting a new password?
 
-Verify users/sessions are correctly stored in Postgres via Drizzle.
+Verify users/sessions are correctly stored in the configured datastore using the stack's data layer.
 </important>
 
 <important if="category is infrastructure, crud, or sdk">
@@ -108,15 +99,15 @@ Verify users/sessions are correctly stored in Postgres via Drizzle.
 Verify real infrastructure, not mocks:
    - Test via curl/SDK directly, not just UI
    - Send real email → arrives in inbox?
-   - Create domain → SES generates DKIM? Cloudflare gets DNS records?
+   - Create domain → does the configured email/domain provider generate the needed DNS records and does Cloudflare receive them if automation is expected?
    - Create API key → authenticates real requests?
 </important>
 
 <important if="category is sdk AND packages/sdk/ exists">
 ### Step A5: SDK Verification
-Run `cd packages/sdk && npm test`
-Test SDK manually: import, call API, verify response
-Test React rendering if supported
+Run the SDK test command from `BUILD_GUIDE.md` or the SDK package's own test script.
+Test SDK manually: import, call API, verify response.
+Test framework-specific rendering/integration features if supported.
 </important>
 
 <important if="this is the deployment feature">

@@ -605,7 +605,7 @@ echo ""
 echo "Will anyone other than you use this clone?"
 echo ""
 echo "  1) Just me — personal or solo use (API key auth wall, no login/signup)"
-echo "  2) Multiple users — team or public (Better Auth with login/signup)"
+echo "  2) Multiple users — team or public (full login/signup auth flow)"
 echo ""
 read -rp "Choose [1]: " AUTH_CHOICE
 case "${AUTH_CHOICE:-1}" in
@@ -670,9 +670,9 @@ if [ "$_SKIP_QA" = true ] && [ "$CLOUD_PROVIDER" != "custom" ]; then
   fi
 fi
 
-# The script path is opinionated on the stack template — TypeScript + Next.js.
-# These two fields make the script's ralph-config.json shape match the skill path
-# so setup-stack.sh can pick the right template for both flows.
+# The current scripted onboarding path still fast-tracks the default installed template.
+# These fields keep the generated ralph-config.json aligned with setup-stack.sh.
+# Future stack-specific scripted selection can expand this beyond the default template.
 LANGUAGE="typescript"
 STACK_PROFILE="dashboard-app"
 
@@ -702,8 +702,9 @@ if [ -n "${DOCS_URL:-}" ]; then
 fi
 echo "Clone:     $CLONE_NAME"
 echo "Cloud:     $CLOUD_PROVIDER"
-echo "Framework: Next.js 16 (default)"
-echo "Database:  Postgres (default)"
+echo "Language:  $LANGUAGE (scripted default template)"
+echo "Stack:     $STACK_PROFILE (scripted default template)"
+echo "Database:  Postgres (template default)"
 if [ "$SKIP_DEPLOY" = "true" ]; then
   _DEPLOY_LABEL="No (build locally only)"
 elif [ "$CLOUD_PROVIDER" = "vercel" ]; then
