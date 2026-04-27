@@ -40,6 +40,11 @@ describe("ralph-watchdog verification gate", () => {
     );
 
     fs.writeFileSync(
+      path.join(tmpDir, "ralph/architecture-decisions.json"),
+      JSON.stringify([], null, 2),
+    );
+
+    fs.writeFileSync(
       path.join(tmpDir, "prd.json"),
       JSON.stringify(
         [
@@ -111,6 +116,7 @@ touch .qa-ran
     try {
       execFileSync("bash", ["ralph/ralph-watchdog.sh", "https://example.com"], {
         cwd: tmpDir,
+        timeout: 15000,
         env: {
           ...process.env,
           MAX_CYCLES: "2",
@@ -191,6 +197,7 @@ exit 0
     try {
       execFileSync("bash", ["ralph/ralph-watchdog.sh", "https://example.com"], {
         cwd: tmpDir,
+        timeout: 15000,
         env: {
           ...process.env,
           MAX_CYCLES: "3",
@@ -279,6 +286,7 @@ exit 0
     try {
       execFileSync("bash", ["ralph/ralph-watchdog.sh", "https://example.com"], {
         cwd: tmpDir,
+        timeout: 15000,
         env: {
           ...process.env,
           MAX_CYCLES: "1",
@@ -386,6 +394,7 @@ exit 0
     try {
       execFileSync("bash", ["ralph/ralph-watchdog.sh", "https://example.com"], {
         cwd: tmpDir,
+        timeout: 15000,
         env: {
           ...process.env,
           MAX_CYCLES: "1",
