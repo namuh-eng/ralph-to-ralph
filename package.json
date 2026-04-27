@@ -1,0 +1,15 @@
+{
+  "name": "ralph-to-ralph",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "validate": "node scripts/validate-schemas.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "vitest": "^2.1.9"
+  }
+}
