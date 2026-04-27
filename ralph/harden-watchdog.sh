@@ -162,7 +162,9 @@ while [ "$(harden_complete)" != "true" ]; do
     log "Phase 6: BLOCKED after $HARDEN_MAX_RETRIES attempts. Remaining gaps: $(remaining_gaps | paste -sd ', ' -)"
     exit 1
   fi
-  run_harden
+  if ! run_harden; then
+    log "Phase 6: Harden attempt $harden_attempt failed."
+  fi
 done
 
 # Phase 7: Canary
