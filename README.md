@@ -103,6 +103,18 @@ ls ralph-config.json 2>/dev/null || echo "No config yet (expected — created by
 ls .ralph-setup-done 2>/dev/null || echo "Stack not set up yet (expected — done by onboarding)"
 ```
 
+### Pipeline developer checks
+
+These checks validate the Ralph orchestration scripts themselves, before a target app has been onboarded:
+
+```bash
+npm install
+npm test
+npm run validate
+```
+
+`make check` and `make test` are generated-app contracts and intentionally require onboarding first. Use the npm scripts for repo-level pipeline regression tests.
+
 ### Step 2: Configure environment
 
 ```bash
