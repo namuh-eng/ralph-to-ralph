@@ -139,6 +139,13 @@ const targets = [
     required: false,
   },
   {
+    label: "ralph/harden-gap.json (array of gaps)",
+    dataPath: "ralph/harden-gap.json",
+    schemaPath: "schemas/harden-gap.schema.json",
+    isArray: true,
+    required: false,
+  },
+  {
     label: "ralph/ralph-state.json (if present)",
     dataPath: "ralph/ralph-state.json",
     schemaPath: "ralph/ralph-state.schema.json",
