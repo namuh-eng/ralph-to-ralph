@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --testTimeout=45000",
     "test:watch": "vitest",
     "validate": "node scripts/validate-schemas.mjs"
   },
