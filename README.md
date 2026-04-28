@@ -8,6 +8,8 @@ A three-phase autonomous pipeline that inspects any SaaS product, builds a worki
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
+[![Featured: "software eats itself" — @GeoffreyHuntley on X](docs/images/featured-tweet.jpeg)](https://x.com/GeoffreyHuntley)
+
 ![Architecture](ralph/docs/architecture-diagram.png)
 
 </div>
