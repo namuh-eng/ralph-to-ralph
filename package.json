@@ -9,7 +9,7 @@
     "validate": "node scripts/validate-schemas.mjs"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
-    "vitest": "^2.1.9"
+    "@types/node": "^25.6.0",
+    "vitest": "^4.1.5"
   }
 }

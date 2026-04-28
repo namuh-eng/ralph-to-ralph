@@ -3,6 +3,10 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("drizzle-kit", () => ({
+  defineConfig: (config: unknown) => config,
+}));
+
 const templateDrizzleConfig =
   "../.claude/skills/ralph-to-ralph-onboard/templates/typescript-nextjs/drizzle.config";
 
