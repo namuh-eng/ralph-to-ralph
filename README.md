@@ -408,7 +408,9 @@ Yes. The default personal path is Vercel + Neon, and you can also choose AWS, GC
 <details>
 <summary><strong>Can I resume interrupted onboarding?</strong></summary>
 
-Yes. If you interrupt `onboard.sh` (Ctrl+C), your answers are saved to `.onboard-answers.tmp`. Re-run `./ralph/onboard.sh` and it will offer to resume. Use `./ralph/onboard.sh --reset` to start completely fresh.
+**Skill (`/ralph-to-ralph-onboard`)** — answers live in the agent's session. Continue the same chat to resume where you left off. If you start a new session, just re-run the skill: it gathers answers in memory and only writes `ralph-config.json` at the final phase, so an interrupted run leaves nothing to clean up.
+
+**Script (`./ralph/onboard.sh`)** — answers are saved to `.onboard-answers.tmp` on Ctrl+C. Re-run the script and it will offer to resume. Use `./ralph/onboard.sh --reset` to start completely fresh.
 </details>
 
 ---
