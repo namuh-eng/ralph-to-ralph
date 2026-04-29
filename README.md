@@ -10,8 +10,6 @@ A three-phase autonomous pipeline that inspects any SaaS product, builds a worki
 
 ![Architecture](ralph/docs/architecture-diagram.png)
 
-<a href="https://x.com/GeoffreyHuntley"><img src="docs/images/featured-tweet.jpeg" alt="Featured: &quot;software eats itself&quot; — @GeoffreyHuntley on X" width="480"></a>
-
 </div>
 
 ---
@@ -446,6 +444,10 @@ gh repo star namuh-eng/ralph-to-ralph
 [Star on GitHub](https://github.com/namuh-eng/ralph-to-ralph)
 
 </div>
+
+## Inspiration
+
+Inspired by [@GeoffreyHuntley](https://x.com/GeoffreyHuntley)'s "software eats itself" post.
 
 ## License
 
