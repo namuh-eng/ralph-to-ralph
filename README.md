@@ -22,7 +22,7 @@ A three-phase autonomous pipeline that inspects any SaaS product, builds a worki
 
 ## Proof It Works
 
-We pointed Ralph-to-Ralph at [resend.com](https://resend.com) during Ralphthon Seoul 2026 and walked away (see the result: [namuh-send](https://github.com/namuh-eng/namuh-send)):
+We pointed Ralph-to-Ralph at [resend.com](https://resend.com) during Ralphthon Seoul 2026 and walked away (see the result: [opensend](https://github.com/namuh-eng/opensend)):
 
 | Metric | Result |
 |--------|--------|
@@ -40,15 +40,14 @@ The clone sends real emails via AWS SES, verifies real domains, auto-configures 
 
 ## How It Works
 
-Three autonomous phases managed by a watchdog orchestrator:
+A single watchdog orchestrator (`ralph/ralph-watchdog.sh`) drives five phases. It auto-restarts failures, tracks token cost against a budget cap, refuses to enter QA until the workspace proves it builds, and detects zero-progress QA stalls. Up to 5 build-QA cycles per feature.
 
 | Phase | Agent | What It Does |
 |-------|-------|-------------|
-| **1. Inspect** | Claude + [Ever CLI](https://foreverbrowsing.com) | Browses the target product, extracts docs, captures screenshots, generates a PRD with 50+ features |
-| **2. Build** | Claude | Implements each feature with TDD, provisions real cloud infrastructure, commits after every feature |
-| **3. QA** | [Codex](https://github.com/openai/codex) + [Ever CLI](https://foreverbrowsing.com) | Tests every feature against the original, finds and fixes bugs, verifies results |
-
-The watchdog auto-restarts failures, pushes commits after every iteration, and runs up to 5 build-QA-fix cycles until everything passes.
+| **1. Inspect** | Claude + [Ever CLI](https://foreverbrowsing.com) | Browses the target, scrapes docs deterministically (Scrapling + trafilatura), captures screenshots, generates a PRD with 50+ features |
+| **1.5. Architecture** | Claude (architect) | Turns the PRD into evidence-based decisions — process topology, data model, infra, auth, packaging — recorded in `ralph/architecture-decisions.json` |
+| **2. Build** | Claude | For each feature: vertically slices it into ≤4 testable phases (Phase 2.5), then implements each slice TDD-first, commits and pushes after every slice |
+| **3. QA** | [Codex](https://github.com/openai/codex) + [Ever CLI](https://foreverbrowsing.com) | Per-feature progressive disclosure: Functional → API Contract → Security → Accessibility. Fixes bugs and re-tests until features pass |
 
 ---
 
@@ -200,35 +199,37 @@ Or open in your browser: **https://github.com/namuh-eng/ralph-to-ralph**
 ### Pipeline Flow
 
 ```
-./ralph/onboard.sh          # Onboard target → generates ralph-config.json
+./ralph/onboard.sh                      # Onboard → ralph-config.json
     ↓
-./scripts/start.sh           # Starts the watchdog
+./ralph/ralph-watchdog.sh               # Orchestrator (cost cap, build-proof gate)
     ↓
-./ralph/ralph-watchdog.sh    # Orchestrates all phases (auto-restart, git push)
-    ↓
-┌─────────────────────────────────────────────────┐
-│  Phase 1: INSPECT (Claude + Ever CLI)           │
-│  → Browse target, capture screenshots           │
-│  → Extract docs and API structure               │
-│  → Generate prd.json (50+ features)             │
-└────────────────────┬────────────────────────────┘
-                     ↓
-┌─────────────────────────────────────────────────┐
-│  Phase 2: BUILD (Claude, one feature at a time) │
-│  → TDD: write tests first, then implement       │
-│  → make check && make test after each feature   │
-│  → git commit + push after each feature         │
-└────────────────────┬────────────────────────────┘
-                     ↓
-┌─────────────────────────────────────────────────┐
-│  Phase 3: QA (Codex + Ever CLI)                 │
-│  → Playwright regression suite                  │
-│  → Ever CLI verification against original       │
-│  → Fix bugs and re-test (up to 5 cycles)        │
-└────────────────────┬────────────────────────────┘
-                     ↓
-              All features pass? → Deploy
-              No? → Back to Phase 2
+┌─────────────────────────────────────────────────────┐
+│  Phase 1: INSPECT (Claude + Ever CLI)               │
+│  → Browse target, scrape docs (Scrapling)           │
+│  → Generate prd.json (50+ features)                 │
+└────────────────────────┬────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────┐
+│  Phase 1.5: ARCHITECTURE (Claude architect)         │
+│  → PRD → architecture-decisions.json                │
+│  → Topology, data model, infra, auth, packaging     │
+└────────────────────────┬────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────┐
+│  Phase 2: BUILD (Claude, one feature at a time)     │
+│   ├─ Phase 2.5 Structure: vertical slice ≤4 phases  │
+│   ├─ TDD: tests first, then implement               │
+│   └─ make check && make test → commit → push        │
+└────────────────────────┬────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────┐
+│  Phase 3: QA (Codex + Ever CLI)                     │
+│  → Functional / API Contract / Security / A11y      │
+│  → Fix and re-test (up to 5 cycles)                 │
+└────────────────────────┬────────────────────────────┘
+                         ↓
+                All features pass? → Deploy
+                No?                → Back to Phase 2
 ```
 
 ### File Map
