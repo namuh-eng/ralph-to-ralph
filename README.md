@@ -290,8 +290,11 @@ ralph-to-ralph/
 |-------|--------------|-----------------|-------|
 | **Onboarding** (Claude) | `ralph/onboard-prompt.md`, `ralph/pre-setup.md`, `CLAUDE.md` | `ralph-config.json`, installed deps, rewritten config files | Pre-loop |
 | **Inspect** (Claude + Ever CLI) | `ralph/inspect-prompt.md`, `ralph/inspect-spec.md`, `ralph/ever-cli-reference.md` | `prd.json`, screenshots in `ralph/screenshots/inspect/` | Phase 1 |
-| **Build** (Claude) | `ralph/build-prompt.md`, `prd.json`, `CLAUDE.md` | Source code in `src/`, tests in `tests/`, SDK in `packages/sdk/` | Phase 2 |
-| **QA** (Codex + Ever CLI) | `AGENTS.md`, `ralph/qa-prompt.md`, `ralph/ever-cli-reference.md` | Bug fixes, QA screenshots in `ralph/screenshots/qa/` | Phase 3 |
+| **Architect** (Claude) | `ralph/architecture-prompt.md`, `prd.json`, `target-docs/`, `ralph-config.json` | `ralph/architecture-decisions.json`, updated `build-spec.md` | Phase 1.5 |
+| **Build** (Claude) | `ralph/build-prompt.md`, `ralph/structure-prompt.md`, `prd.json`, `build-spec.md`, `CLAUDE.md` | Source in `src/`, tests in `tests/`, SDK in `packages/sdk/`, structure outlines in `.qrspi/{feature-id}/structure.md` (when needed) | Phase 2 (+2.5 Structure inline) |
+| **QA** (Codex + Ever CLI, multi-layer) | `AGENTS.md`, `ralph/qa/{base,api,security,a11y,footer}.md`, `ralph/ever-cli-reference.md` | Bug fixes, QA screenshots in `ralph/screenshots/qa/`, `qa-report.json` | Phase 3 |
+
+The QA agent uses **progressive disclosure** — `qa-ralph.sh` assembles the prompt from the modules above based on feature category (auth, crud, infrastructure, settings, etc.). Not every feature runs all four sub-phases.
 
 ### What Gets Built
 
