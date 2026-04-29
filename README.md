@@ -91,6 +91,22 @@ Want **Railway**, **Fly.io**, **Render**, or self-hosted? Pick "custom" during o
 
 ---
 
+## Stack
+
+Onboarding picks one of three first-class stacks based on your answers (language + framework), writes the choice to `ralph-config.json`, and runs the matching template's setup script.
+
+| Stack | Language | Framework | Tests | Linter |
+|-------|----------|-----------|-------|--------|
+| **typescript-nextjs** (default, most complete) | TypeScript | Next.js + React + Tailwind | Vitest + Playwright | Biome |
+| **python-fastapi** | Python | FastAPI + uvicorn | pytest + httpx | Ruff |
+| **go-chi** | Go | chi router | `go test` | `go test` (no separate linter) |
+
+The TypeScript template ships the most pre-wired tooling — Drizzle for DB, Playwright for E2E, full `make test-e2e` and `make db-push` targets. Python and Go templates are minimal scaffolds; the build agent installs database drivers and feature-specific dependencies as the PRD requires them.
+
+After onboarding, `.ralph-setup-done` records the template name and `BUILD_GUIDE.md` (in the repo root) has stack-specific build instructions. Templates live in `.claude/skills/ralph-to-ralph-onboard/templates/`.
+
+---
+
 ## Setup
 
 Follow these steps in order. Each step has a verification command — run it before moving to the next step.
