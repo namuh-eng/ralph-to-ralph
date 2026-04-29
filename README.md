@@ -146,15 +146,15 @@ Onboarding researches the target product, configures the stack, installs depende
 
 #### Recommended: Onboarding skill inside a coding agent
 
-Open this repo in your coding agent of choice (Claude Code, Codex, Cursor, etc.) and run:
+Open this repo in your coding agent and invoke the onboarding skill:
 
-```
-/ralph-to-ralph-onboard
-```
+| Agent | Invoke with |
+|-------|-------------|
+| Claude Code | `/ralph-to-ralph-onboard` |
+| Codex | `$ralph-to-ralph-onboard` |
+| Other CLIs | Paste the contents of `.claude/skills/ralph-to-ralph-onboard/SKILL.md` and ask the agent to follow it |
 
 The agent researches the product live, explains what needs to be set up in plain English, walks you through each decision, installs anything missing (browser agent, cloud CLI), and verifies your setup before kicking off the build loop. This is the path we recommend — it adapts to whatever's already on your machine.
-
-If your CLI doesn't support skills directly, paste the contents of `.claude/skills/ralph-to-ralph-onboard/SKILL.md` into the agent and ask it to follow the instructions.
 
 #### Alternative: Script
 
