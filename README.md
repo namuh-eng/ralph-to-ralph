@@ -331,9 +331,12 @@ The pipeline is controlled by prompt files:
 
 | File | Controls |
 |------|----------|
-| `ralph/inspect-prompt.md` | How the Inspect agent analyzes the target |
-| `ralph/build-prompt.md` | How the Build agent implements features |
-| `ralph/qa-prompt.md` | How the QA agent tests features |
+| `ralph/onboard-prompt.md` | How the Onboarding agent researches the target and configures the stack |
+| `ralph/inspect-prompt.md` | How the Inspect agent browses, scrapes docs, and writes the PRD |
+| `ralph/architecture-prompt.md` | How the Architect turns the PRD into evidence-based architecture decisions |
+| `ralph/build-prompt.md` | How the Build agent implements features (TDD, package install rules, etc.) |
+| `ralph/structure-prompt.md` | How Build vertically slices large features into ≤4 testable phases |
+| `ralph/qa/{base,api,security,a11y,footer}.md` | How the QA agent tests features — modules assembled per feature category |
 | `ralph/pre-setup.md` | Pre-configured setup context (read by all agents) |
 
 ### Skipping phases
