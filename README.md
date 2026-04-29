@@ -340,7 +340,14 @@ The pipeline produces a **fully functional, deployed product** — not a mockup.
 
 ### Changing the target product
 
-Re-run onboarding:
+Re-run onboarding. Easiest in your coding agent:
+
+| Agent | Invoke with |
+|-------|-------------|
+| Claude Code | `/ralph-to-ralph-onboard` |
+| Codex | `$ralph-to-ralph-onboard` |
+
+For a clean slate (clears `ralph-config.json` and `.ralph-setup-done`), use the script form:
 
 ```bash
 ./ralph/onboard.sh --reset   # Clear previous config
