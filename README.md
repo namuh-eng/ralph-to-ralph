@@ -54,28 +54,40 @@ The watchdog auto-restarts failures, pushes commits after every iteration, and r
 
 ## Prerequisites
 
-Install and verify each tool before proceeding. Run the **Verify** command to confirm each is ready.
+You can install these ahead of time, or onboarding will prompt you when it needs them.
 
-| # | Tool | Purpose | Install | Verify | Required For |
-|---|------|---------|---------|--------|-------------|
-| 1 | [Node.js 20+](https://nodejs.org/) | Runtime | `brew install node` or [download](https://nodejs.org/) | `node -v` (expect `v20+`) | All phases |
-| 2 | [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) | Onboarding, Inspect, Build | `npm install -g @anthropic-ai/claude-code` | `claude -v` | Onboarding, Phase 1, Phase 2 |
-| 3 | [Codex CLI](https://github.com/openai/codex) | Independent QA evaluator | `npm install -g @openai/codex` | `codex --version` | Phase 3 only |
-| 4 | [Ever CLI](https://foreverbrowsing.com) | Browser automation for inspection + QA | Install from [foreverbrowsing.com](https://foreverbrowsing.com) | `ever --version` | Phase 1, Phase 3 |
-| 5 | Cloud CLI | Infrastructure provisioning | See [cloud setup](#cloud-cli-setup) below | See [cloud setup](#cloud-cli-setup) below | Onboarding, Phase 2 |
+### Coding CLI
 
-**Which phases need what:** Onboarding needs Claude Code + your cloud CLI. Inspect needs Claude Code + Ever CLI. Build needs Claude Code only. QA needs Codex + Ever CLI. You can run onboarding and build without Ever CLI, but Inspect and QA won't work without it.
+The agent that drives Inspect, Build, and QA. We recommend running **Claude Code for Build** and **Codex for QA** so the QA pass is independent.
 
-### Cloud CLI Setup
+| Tool | Install |
+|------|---------|
+| [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) **(recommended)** | `npm install -g @anthropic-ai/claude-code` |
+| [Codex CLI](https://github.com/openai/codex) **(recommended)** | `npm install -g @openai/codex` |
 
-Install and authenticate the CLI for your chosen cloud provider:
+Any other coding CLI works too — the prompts are plain markdown in `ralph/build-prompt.md` and `ralph/qa-prompt.md`. The watchdog shells out to `claude` and `codex` by default; swap the commands in `ralph/build-ralph.sh` / `ralph/qa-ralph.sh` if you're using something else.
 
-| Provider | Install | Authenticate | Verify |
-|----------|---------|-------------|--------|
-| **Vercel** (default) | `npm install -g vercel` | `vercel login` | `vercel whoami` returns a username |
-| **AWS** | `brew install awscli` | `aws configure` | `aws sts get-caller-identity` returns account JSON |
-| **GCP** (experimental) | [Install gcloud](https://cloud.google.com/sdk/docs/install) | `gcloud auth login` | `gcloud auth print-identity-token` returns a token |
-| **Azure** (experimental) | `brew install azure-cli` | `az login` | `az account show` returns subscription JSON |
+### Browser Agent
+
+Used by Inspect and QA to drive the target product and your clone.
+
+| Tool | Install |
+|------|---------|
+| [Ever CLI](https://foreverbrowsing.com) **(recommended — the loop is tuned for this)** | See [foreverbrowsing.com](https://foreverbrowsing.com) |
+| [Agent Browser](https://agent-browser.dev/) | See [agent-browser.dev](https://agent-browser.dev/) |
+| [Playwright](https://playwright.dev/) | `npm install -g playwright && playwright install` |
+
+Anything else with a CLI works, but the inspect and QA prompts are tuned for Ever CLI — expect rougher edges with other agents.
+
+### Cloud CLI
+
+Pick one and authenticate it. Onboarding will ask if it doesn't find one already installed.
+
+| Provider | Install | Authenticate |
+|----------|---------|--------------|
+| **Vercel** (default, personal) | `npm install -g vercel` | `vercel login` |
+| **AWS** (team / production) | `brew install awscli` | `aws configure` |
+| **GCP** | [Install gcloud](https://cloud.google.com/sdk/docs/install) | `gcloud auth login` |
 
 ---
 
