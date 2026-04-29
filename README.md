@@ -142,32 +142,27 @@ grep -c '=' .env  # Should show number of configured variables
 
 ### Step 3: Onboard a target product
 
-Onboarding researches the target product, configures the stack, installs dependencies, and starts the build loop. Choose one of two paths:
+Onboarding researches the target product, configures the stack, installs dependencies, and starts the build loop.
 
-#### Option A: Script (automated, no interaction after initial prompts)
+#### Recommended: Onboarding skill inside a coding agent
 
-```bash
-./ralph/onboard.sh
-```
-
-The script asks for:
-1. Target product URL
-2. Clone name
-3. Cloud provider (Vercel / AWS / GCP / Azure / Custom)
-4. Deploy after build? (Y/n)
-5. Browser agent (Ever CLI / Playwright / Stagehand / Custom)
-
-Then it hands off to Claude for research and config generation, and auto-starts the build loop on success.
-
-#### Option B: Skill (interactive, conversational)
-
-In any Claude Code session inside the repo:
+Open this repo in your coding agent of choice (Claude Code, Codex, Cursor, etc.) and run:
 
 ```
 /ralph-to-ralph-onboard
 ```
 
-Claude researches the product live, explains what needs to be set up in plain English, walks you through each decision, and verifies your setup. Both paths produce the same `ralph-config.json` and project setup.
+The agent researches the product live, explains what needs to be set up in plain English, walks you through each decision, installs anything missing (browser agent, cloud CLI), and verifies your setup before kicking off the build loop. This is the path we recommend — it adapts to whatever's already on your machine.
+
+If your CLI doesn't support skills directly, paste the contents of `.claude/skills/ralph-to-ralph-onboard/SKILL.md` into the agent and ask it to follow the instructions.
+
+#### Alternative: Script
+
+```bash
+./ralph/onboard.sh
+```
+
+A bash script that asks for target URL, clone name, cloud provider, deploy preference, and browser agent — then hands off to Claude for research and config generation. Useful for non-interactive environments. Produces the same `ralph-config.json` as the skill.
 
 **Verify onboarding completed:**
 ```bash
