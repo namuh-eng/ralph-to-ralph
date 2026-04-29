@@ -244,7 +244,7 @@ Run verification commands for each service they claimed is ready. Only check wha
 | GCP CLI | `gcloud auth print-identity-token` | Returns a token |
 | Azure CLI | `az account show` | Returns subscription JSON |
 | Neon | Check `.env` for `DATABASE_URL` containing `neon.tech` | Key exists and is non-empty |
-| Anthropic API key | Check `.env` for `ANTHROPIC_API_KEY` | Key exists and is non-empty |
+| Anthropic API key (only if clone calls Claude at runtime) | Check `.env` for `ANTHROPIC_API_KEY` | Key exists and is non-empty |
 | Cloudflare | Check `.env` for `CLOUDFLARE_API_TOKEN` | Key exists and is non-empty |
 | Ever CLI | `ever --version` | Returns a version |
 | Docker | `docker info` | Daemon is running |
@@ -304,7 +304,6 @@ Verifying your setup...
   ✓ Node.js — v22.1.0
   ✓ Vercel CLI — logged in as ashley
   ✓ Neon — DATABASE_URL found in .env
-  ✗ Anthropic API key — ANTHROPIC_API_KEY not found in .env
   ✓ Ever CLI — v1.2.0
 ```
 
@@ -312,8 +311,10 @@ Verifying your setup...
 
 For each failed check, provide a **one-line fix** immediately:
 
-> `✗ Anthropic API key — not found in .env`
+> `✗ Anthropic API key — not found in .env` (only required if your clone calls Claude at runtime — not for the build loop)
 > Fix: Add `ANTHROPIC_API_KEY=sk-ant-...` to your `.env` file. Get a key at console.anthropic.com.
+
+**Note for the agent:** Do NOT tell the user the build loop needs `ANTHROPIC_API_KEY`. The watchdog calls the `claude` CLI in headless mode (`claude -p ...`), which authenticates via the user's Claude Code login/subscription, not via this env var. `ANTHROPIC_API_KEY` is only needed when the *cloned product itself* makes Anthropic API calls at runtime (e.g., the target product has AI features).
 
 Then ask: **"Want to fix these now, or continue and handle them later?"**
 
