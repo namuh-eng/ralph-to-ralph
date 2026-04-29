@@ -371,14 +371,17 @@ The pipeline is controlled by prompt files:
 | `ralph/qa/{base,api,security,a11y,footer}.md` | How the QA agent tests features — modules assembled per feature category |
 | `ralph/pre-setup.md` | Pre-configured setup context (read by all agents) |
 
-### Skipping phases
+### Running phases individually
 
-If you already have a `prd.json`, run phases individually:
+The watchdog (`ralph/ralph-watchdog.sh`) is the production entry point — it handles process-level restarts, cost caps, build-proof gating before QA, and stall detection. Run a single phase only when iterating manually:
 
 ```bash
-./ralph/build-ralph.sh    # Phase 2 only
-./ralph/qa-ralph.sh       # Phase 3 only
+./ralph/inspect-ralph.sh <target-url>   # Phase 1 only — generate / refresh prd.json
+./ralph/build-ralph.sh                  # Phase 2 only — needs prd.json
+./ralph/qa-ralph.sh                     # Phase 3 only — needs a built clone
 ```
+
+These scripts have **no process-level restart logic** — if they crash, they stay crashed. Fine for short sessions; for unattended end-to-end runs, always use the watchdog.
 
 ---
 
