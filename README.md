@@ -105,7 +105,7 @@ git clone https://github.com/YOUR_USERNAME/ralph-to-ralph.git
 cd ralph-to-ralph
 
 # Optional: track upstream for future pipeline improvements
-git remote add upstream https://github.com/jaeyunha/ralph-to-ralph.git
+git remote add upstream https://github.com/namuh-eng/ralph-to-ralph.git
 ```
 
 Then continue:
