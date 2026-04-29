@@ -185,16 +185,6 @@ test -f .ralph-setup-done && echo "Stack: $(cat .ralph-setup-done)"
 make check && make test
 ```
 
-### Step 4: Star this repo
-
-If Ralph-to-Ralph saved you time, a star helps others find it:
-
-```bash
-gh repo star namuh-eng/ralph-to-ralph
-```
-
-Or open in your browser: **https://github.com/namuh-eng/ralph-to-ralph**
-
 ---
 
 ## Architecture Reference
