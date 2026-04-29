@@ -87,6 +87,9 @@ Pick one and authenticate it. Onboarding will ask if it doesn't find one already
 | **Vercel** (default, personal) | `npm install -g vercel` | `vercel login` |
 | **AWS** (team / production) | `brew install awscli` | `aws configure` |
 | **GCP** | [Install gcloud](https://cloud.google.com/sdk/docs/install) | `gcloud auth login` |
+| **Azure** | [Install az](https://learn.microsoft.com/cli/azure/install-azure-cli) | `az login` |
+
+Want **Railway**, **Fly.io**, **Render**, or self-hosted? Pick "custom" during onboarding and describe your stack — onboarding generates a stack-specific preflight script.
 
 ---
 
