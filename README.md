@@ -293,14 +293,18 @@ ralph-to-ralph/
 
 | Command | What It Does |
 |---------|-------------|
-| `make check` | Typecheck + lint/format (stack-specific) |
+| `make check` | Typecheck + lint/format (composite) |
 | `make test` | Run unit tests |
 | `make test-e2e` | Run E2E tests (needs dev server) |
 | `make all` | `check` + `test` |
 | `make fix` | Auto-fix lint/format issues |
+| `make validate` | Validate state files (`prd.json`, `qa-report.json`, `ralph-config.json`, `ralph/ralph-state.json`) against their JSON schemas |
 | `make dev` | Dev server on port **3015** |
 | `make build` | Production build |
-| `make db-push` | Push schema to database |
+| `make db-push` / `db-generate` / `db-migrate` | Schema sync · generate migration · run migrations |
+| `make typecheck` / `lint` / `format` / `clean` | Granular targets — usually run via `make check` |
+
+Pass `VERBOSE=1` (or use `make check-verbose` / `test-verbose`) to see full output instead of the silent-on-success summary.
 
 ### Agent Roles
 
