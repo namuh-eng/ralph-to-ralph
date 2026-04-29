@@ -22,6 +22,39 @@ RUN_STATUS_REASON=""
 
 log() { echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
 
+# Run a phase command and capture its true exit status.
+#
+# Why this helper exists: the script runs under `set -euo pipefail`. The
+# previous pattern was:
+#
+#     ./phase.sh 2>&1 | tee -a "$LOG_FILE" > "$out" || true
+#     EXIT=${PIPESTATUS[0]}
+#
+# When the left-hand pipeline exits non-zero, pipefail trips, and `|| true`
+# runs as a *new* command — that overwrites PIPESTATUS, so PIPESTATUS[0]
+# always reads `true`'s exit (0) and real failures are masked.
+#
+# Fix: temporarily disable errexit + pipefail around the pipeline, capture
+# PIPESTATUS[0] with no intervening commands, then restore. On failure we
+# log the exit code and a tail of the phase output so silent crashes are
+# visible in the watchdog log.
+#
+# Usage: run_phase <out_file> <label> <fail_tail_lines> <cmd> [args...]
+# Sets:  PHASE_EXIT
+run_phase() {
+  local out="$1"; shift
+  local label="$1"; shift
+  local fail_tail="$1"; shift
+  set +e +o pipefail
+  "$@" 2>&1 | tee -a "$LOG_FILE" > "$out"
+  PHASE_EXIT=${PIPESTATUS[0]}
+  set -e -o pipefail
+  if [ "$PHASE_EXIT" -ne 0 ]; then
+    log "$label exited non-zero (exit=$PHASE_EXIT). Last $fail_tail lines of phase output:"
+    tail -n "$fail_tail" "$out" 2>/dev/null | sed 's/^/    /' | tee -a "$LOG_FILE" >/dev/null
+  fi
+}
+
 # Global time budget (hours) — prevents unbounded runs
 MAX_WALL_CLOCK_HOURS="${MAX_WALL_CLOCK_HOURS:-12}"
 START_EPOCH=$(date +%s)
@@ -536,8 +569,8 @@ while ! inspect_done; do
   log "Phase 1: Running inspect loop... (attempt $((inspect_restarts + 1)))"
 
   PHASE_LOG_TMP=$(mktemp)
-  ./ralph/inspect-ralph.sh "$TARGET_URL" 2>&1 | tee -a "$LOG_FILE" > "$PHASE_LOG_TMP" || true
-  INSPECT_EXIT=${PIPESTATUS[0]}
+  run_phase "$PHASE_LOG_TMP" "Phase 1: inspect-ralph.sh" 30 ./ralph/inspect-ralph.sh "$TARGET_URL"
+  INSPECT_EXIT="$PHASE_EXIT"
   LOG_TAIL=$(tail -50 "$PHASE_LOG_TMP")
 
   COST_INFO=$(update_cost "inspect" "inspect" "$LOG_TAIL")
@@ -572,16 +605,17 @@ if inspect_done && ! architecture_done; then
 
   PHASE_LOG_TMP=$(mktemp)
   # Invoke architect agent
-  claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
-    "@ralph/architecture-prompt.md @prd.json @target-docs/INDEX.md @ralph-config.json" \
-    2>&1 | tee -a "$LOG_FILE" > "$PHASE_LOG_TMP" || true
-  
+  run_phase "$PHASE_LOG_TMP" "Phase 1.5: architecture (claude -p)" 30 \
+    claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
+    "@ralph/architecture-prompt.md @prd.json @target-docs/INDEX.md @ralph-config.json"
+  ARCHITECTURE_EXIT="$PHASE_EXIT"
+
   LOG_TAIL=$(tail -50 "$PHASE_LOG_TMP")
   COST_INFO=$(update_cost "architecture" "architecture" "$LOG_TAIL")
   rm -f "$PHASE_LOG_TMP"
 
   if ! architecture_done; then
-    log "Phase 1.5: Architecture design failed or incomplete. Check logs."
+    log "Phase 1.5: Architecture design failed or incomplete (exit=$ARCHITECTURE_EXIT). Check logs."
     # We don't abort here; build will just use default build-spec.md if it exists
   else
     log "Phase 1.5: Architecture design complete. decisions written to ralph/architecture-decisions.json"
@@ -616,8 +650,8 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
     log "Phase 2: Building... $(count_passes)/$(total_tasks) passes (attempt $((build_restarts + 1)))"
 
     PHASE_LOG_TMP=$(mktemp)
-    ./ralph/build-ralph.sh 2>&1 | tee -a "$LOG_FILE" > "$PHASE_LOG_TMP" || true
-    BUILD_EXIT=${PIPESTATUS[0]}
+    run_phase "$PHASE_LOG_TMP" "Phase 2: build-ralph.sh (cycle $cycle)" 30 ./ralph/build-ralph.sh
+    BUILD_EXIT="$PHASE_EXIT"
     LOG_TAIL=$(tail -80 "$PHASE_LOG_TMP")
 
     COST_INFO=$(update_cost "build" "build_cycle_${cycle}" "$LOG_TAIL")
@@ -675,8 +709,8 @@ for ((cycle=1; cycle<=MAX_CYCLES; cycle++)); do
 
     QA_START_EPOCH=$(date +%s)
     PHASE_LOG_TMP=$(mktemp)
-    ./ralph/qa-ralph.sh "$TARGET_URL" 2>&1 | tee -a "$LOG_FILE" > "$PHASE_LOG_TMP" || true
-    QA_EXIT=${PIPESTATUS[0]}
+    run_phase "$PHASE_LOG_TMP" "Phase 3: qa-ralph.sh (cycle $cycle, attempt $qa_restarts)" 30 ./ralph/qa-ralph.sh "$TARGET_URL"
+    QA_EXIT="$PHASE_EXIT"
     QA_END_EPOCH=$(date +%s)
     QA_RUNTIME=$(( QA_END_EPOCH - QA_START_EPOCH ))
     LOG_TAIL=$(tail -80 "$PHASE_LOG_TMP")
