@@ -442,6 +442,14 @@ If the script fails, show the error to the user and stop — do not proceed to t
 
 **Step 7c — Rewrite prompts and finish.** Follow `@references/onboard-prompt.md` starting from **Step 6** (Rewrite inspect-prompt.md) — Steps 3–5 have already been handled above.
 
+**Star prompt (optional, gated).** Before launching the build loop, ask the user once if they'd like to star the repo. Only ask if `gh` is installed and `gh auth status` succeeds — otherwise skip silently. Use `AskUserQuestion` with default "No". On yes, run:
+
+```bash
+gh api --method PUT /user/starred/namuh-eng/ralph-to-ralph --silent
+```
+
+Never block on this — if the call fails or `gh` isn't available, proceed straight to the build loop. This mirrors `onboard.sh`'s `maybe_prompt_to_star_repo`.
+
 When done, launch the build loop:
 
 ```bash
