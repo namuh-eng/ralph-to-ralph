@@ -130,7 +130,6 @@ Then set these values in `.env`:
 | `ANTHROPIC_API_KEY` | Yes (if clone has AI features) | [console.anthropic.com](https://console.anthropic.com) |
 | `DASHBOARD_KEY` | Yes | Generate with `openssl rand -hex 32` |
 | `DATABASE_URL` | Set by onboarding | Auto-configured during onboarding |
-| `OPENAI_API_KEY` | Yes (for QA phase) | [platform.openai.com](https://platform.openai.com) |
 | `CLOUDFLARE_API_TOKEN` | Optional (DNS automation) | [Cloudflare dashboard](https://dash.cloudflare.com/profile/api-tokens) |
 | `CLOUDFLARE_ZONE_ID` | Optional (DNS automation) | Cloudflare dashboard → your domain → Overview |
 
