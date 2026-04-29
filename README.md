@@ -40,7 +40,7 @@ The clone sends real emails via AWS SES, verifies real domains, auto-configures 
 
 ## How It Works
 
-A single watchdog orchestrator (`ralph/ralph-watchdog.sh`) drives five phases. It auto-restarts failures, tracks token cost against a budget cap, refuses to enter QA until the workspace proves it builds, and detects zero-progress QA stalls. Up to 5 build-QA cycles per feature.
+A single watchdog orchestrator (`ralph/ralph-watchdog.sh`) drives four phases. It auto-restarts failures, tracks token cost against a budget cap, refuses to enter QA until the workspace proves it builds, and detects zero-progress QA stalls. Up to 5 build-QA cycles per feature.
 
 | Phase | Agent | What It Does |
 |-------|-------|-------------|
