@@ -853,47 +853,45 @@ def _delete_orphan_files(out_dir: Path, pages: list[FetchedPage]) -> None:
                 log(f"  warn: could not remove orphan {path}: {exc}")
 
 
+# Absolute minimum page count to retain a stage as a fallback candidate when
+# no later stage clears ``min_pages``. Below this we treat the stage as noise
+# (e.g. a docs-flavored 404 page or a stub index) and clean up.
+ABS_FLOOR = 5
+
+
 def _run_url_list_stage(
     name: str,
     urls: list[str],
     out_dir: Path,
     max_pages: int,
     concurrency: int,
-    min_pages: int,
-    result: ScrapeResult,
-) -> bool:
-    """Fetch a flat URL list, write pages, and decide whether to accept the
-    stage. Returns ``True`` if the stage met the page threshold (caller should
-    return). Returns ``False`` if the stage fell through; in that case the
-    orphan files have already been cleaned and ``result.pages`` /
-    ``result.failures`` are reset.
+) -> tuple[list[FetchedPage], list[tuple[str, str]]]:
+    """Fetch a flat URL list and write extracted pages to ``out_dir``.
+
+    Returns ``(pages, failures)``. The caller decides whether to accept the
+    stage (commit pages to ``result``) or roll it back via
+    ``_delete_orphan_files``. We deliberately don't mutate ``result`` here so
+    the discovery ladder can run multiple stages and pick the best one.
     """
     successes, failures = fetch_many(urls[:max_pages], concurrency)
-    result.failures.extend(failures)
     stage_pages: list[FetchedPage] = []
+    stage_failures: list[tuple[str, str]] = list(failures)
     for url, html, fetcher_name in successes:
         md = html_to_markdown(html, url)
         if not md:
-            result.failures.append((url, "trafilatura returned empty"))
+            stage_failures.append((url, "trafilatura returned empty"))
             continue
         if len(md) < MIN_MARKDOWN_CHARS:
-            result.failures.append((url, f"extracted markdown too short ({len(md)} chars)"))
+            stage_failures.append((url, f"extracted markdown too short ({len(md)} chars)"))
             continue
         try:
             page = write_page(out_dir, url, md, fetcher=fetcher_name)
         except ValueError as exc:
-            result.failures.append((url, f"write refused: {exc}"))
+            stage_failures.append((url, f"write refused: {exc}"))
             continue
         stage_pages.append(page)
-    result.pages.extend(stage_pages)
-    if len(result.pages) >= min(min_pages, 5):
-        result.discovery = name
-        return True
-    log(f"  {name} yielded only {len(result.pages)} pages, falling through")
-    _delete_orphan_files(out_dir, stage_pages)
-    result.pages.clear()
-    result.failures.clear()
-    return False
+    log(f"  {name} produced {len(stage_pages)} pages")
+    return stage_pages, stage_failures
 
 
 def run_pipeline(
@@ -965,29 +963,88 @@ def run_pipeline(
             result.discovery = "llms-full.txt"
             return result
 
+    # Discovery ladder: probe each stage in order. Accept the first that
+    # clears ``min_pages`` (the coverage gate). If none does, fall back to
+    # the largest stage that cleared ``ABS_FLOOR`` (handles tiny micro-products
+    # whose entire doc surface is < min_pages). Stages that don't clear
+    # ABS_FLOOR are cleaned up so the next stage starts with an empty out_dir.
+    #
+    # Why "best of" instead of "first match": some products publish a thin or
+    # misleading llms.txt (e.g. docs.github.com lists API endpoints, not docs).
+    # Accepting that on first match traps us below the coverage gate with no
+    # second chance. With "best of", a productive sitemap or crawl wins.
+    best_fallback: tuple[str, list[FetchedPage], list[tuple[str, str]]] | None = None
+
+    def commit(name: str, pages: list[FetchedPage], failures: list[tuple[str, str]]) -> None:
+        """Commit a stage as the winning discovery. Cleans any prior fallback's
+        files from disk first so we don't leave orphans alongside the winner.
+        """
+        nonlocal best_fallback
+        if best_fallback is not None:
+            _, fb_pages, _ = best_fallback
+            # Don't delete files the winner also produced (same URL, same path).
+            winner_paths = {p.rel_path for p in pages}
+            stale = [p for p in fb_pages if p.rel_path not in winner_paths]
+            _delete_orphan_files(out_dir, stale)
+            best_fallback = None
+        result.pages = list(pages)
+        result.failures.extend(failures)
+        result.discovery = name
+
+    def consider_fallback(
+        name: str, pages: list[FetchedPage], failures: list[tuple[str, str]]
+    ) -> None:
+        """Track the best below-threshold stage. Cleans the loser's files."""
+        nonlocal best_fallback
+        if len(pages) < ABS_FLOOR:
+            log(f"  {name} below floor ({len(pages)} < {ABS_FLOOR}), discarding")
+            _delete_orphan_files(out_dir, pages)
+            return
+        if best_fallback is None or len(pages) > len(best_fallback[1]):
+            if best_fallback is not None:
+                _, fb_pages, _ = best_fallback
+                # Don't delete files the new fallback also produced.
+                new_paths = {p.rel_path for p in pages}
+                stale = [p for p in fb_pages if p.rel_path not in new_paths]
+                _delete_orphan_files(out_dir, stale)
+            log(f"  {name} kept as fallback ({len(pages)} pages, below min_pages={min_pages})")
+            best_fallback = (name, pages, failures)
+        else:
+            log(f"  {name} discarded ({len(pages)} pages, fallback has {len(best_fallback[1])})")
+            _delete_orphan_files(out_dir, pages)
+
     # 2. llms.txt
     llms_urls = discover_llms_txt(base_url)
-    if llms_urls and len(llms_urls) >= 5:
-        if _run_url_list_stage(
-            "llms.txt", llms_urls, out_dir, max_pages, concurrency, min_pages, result
-        ):
+    if llms_urls and len(llms_urls) >= ABS_FLOOR:
+        pages, failures = _run_url_list_stage(
+            "llms.txt", llms_urls, out_dir, max_pages, concurrency
+        )
+        if len(pages) >= min_pages:
+            commit("llms.txt", pages, failures)
             return result
+        consider_fallback("llms.txt", pages, failures)
 
     # 3. mint.json
     mint_urls = discover_mint_json(base_url)
-    if mint_urls and len(mint_urls) >= 5:
-        if _run_url_list_stage(
-            "mint.json", mint_urls, out_dir, max_pages, concurrency, min_pages, result
-        ):
+    if mint_urls and len(mint_urls) >= ABS_FLOOR:
+        pages, failures = _run_url_list_stage(
+            "mint.json", mint_urls, out_dir, max_pages, concurrency
+        )
+        if len(pages) >= min_pages:
+            commit("mint.json", pages, failures)
             return result
+        consider_fallback("mint.json", pages, failures)
 
     # 4. sitemap.xml
     sitemap_urls = discover_sitemap(base_url)
-    if sitemap_urls and len(sitemap_urls) >= 5:
-        if _run_url_list_stage(
-            "sitemap.xml", sitemap_urls, out_dir, max_pages, concurrency, min_pages, result
-        ):
+    if sitemap_urls and len(sitemap_urls) >= ABS_FLOOR:
+        pages, failures = _run_url_list_stage(
+            "sitemap.xml", sitemap_urls, out_dir, max_pages, concurrency
+        )
+        if len(pages) >= min_pages:
+            commit("sitemap.xml", pages, failures)
             return result
+        consider_fallback("sitemap.xml", pages, failures)
 
     # 5. crawl
     seed_candidates = [
@@ -1006,27 +1063,39 @@ def run_pipeline(
         if not crawled:
             continue
         seed_pages: list[FetchedPage] = []
+        seed_failures: list[tuple[str, str]] = []
         for url, html, fetcher_name in crawled:
             md = html_to_markdown(html, url)
             if not md:
-                result.failures.append((url, "trafilatura returned empty"))
+                seed_failures.append((url, "trafilatura returned empty"))
                 continue
             if len(md) < MIN_MARKDOWN_CHARS:
-                result.failures.append((url, f"extracted markdown too short ({len(md)} chars)"))
+                seed_failures.append((url, f"extracted markdown too short ({len(md)} chars)"))
                 continue
             try:
                 page = write_page(out_dir, url, md, fetcher=fetcher_name)
             except ValueError as exc:
-                result.failures.append((url, f"write refused: {exc}"))
+                seed_failures.append((url, f"write refused: {exc}"))
                 continue
             seed_pages.append(page)
-        result.pages.extend(seed_pages)
-        if result.pages:
-            result.discovery = f"crawl({seed})"
+        if len(seed_pages) >= min_pages:
+            commit(f"crawl({seed})", seed_pages, seed_failures)
             return result
-        # Seed yielded crawled HTML but trafilatura extracted nothing usable —
-        # clean the empty/orphan files before trying the next seed.
-        _delete_orphan_files(out_dir, seed_pages)
+        if seed_pages:
+            consider_fallback(f"crawl({seed})", seed_pages, seed_failures)
+            # crawl already exhausted this seed; don't retry remaining seeds
+            # if it produced anything (matches prior behavior of breaking on
+            # first non-empty seed).
+            break
+
+    # No stage cleared the coverage gate. Use the best fallback if any so the
+    # caller sees the actual coverage shortfall instead of a falsely-empty run.
+    if best_fallback is not None:
+        name, pages, failures = best_fallback
+        result.pages = list(pages)
+        result.failures.extend(failures)
+        # Tag the discovery so coverage.json shows we fell back below the gate.
+        result.discovery = f"{name} (below min_pages)"
 
     return result
 
