@@ -33,6 +33,10 @@ get_qa_timeout() {
 
 [ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./ralph/onboard.sh first."; exit 1; }
 [ -f BUILD_GUIDE.md ] || { echo "ERROR: BUILD_GUIDE.md not found. Run ./ralph/onboard.sh first."; exit 1; }
+
+# shellcheck source=lib/agent-runner.sh
+. "$(dirname "$0")/lib/agent-runner.sh"
+load_agent_config qa
 BROWSER_AGENT=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
 STACK_PROFILE=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('stackProfile', 'unknown'))" 2>/dev/null || echo "unknown")
 LANGUAGE=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('language', 'unknown'))" 2>/dev/null || echo "unknown")
@@ -76,9 +80,10 @@ if [ ! -f "prd.json" ]; then
   exit 1
 fi
 
-echo "=== RALPH-TO-RALPH: Phase 3 (QA with Codex) ==="
+echo "=== RALPH-TO-RALPH: Phase 3 (QA) ==="
 echo "Target: ${TARGET_URL:-none}"
 echo "Stack: $LANGUAGE / $STACK_PROFILE"
+echo "Agent: $(agent_label)"
 echo "Sub-phases: progressive (base + category-specific modules)"
 echo "Command contract: prefer make targets and BUILD_GUIDE.md over hardcoded stack CLIs"
 echo ""
@@ -424,7 +429,7 @@ except:
   done
   QA_PROMPT+=$'\n'"$(cat ralph/qa/footer.md)"
 
-  result=$(timeout "$QA_TIMEOUT" codex exec --dangerously-bypass-approvals-and-sandbox \
+  result=$(agent_invoke "$QA_TIMEOUT" \
 "$QA_PROMPT
 
 == FEATURE TO TEST ==
@@ -486,7 +491,7 @@ Then:
   fi
 
   # No promise = crash or context overflow. Record as partial and move on.
-  echo "WARNING: No promise from Codex for $FEATURE_ID (attempt $ATTEMPT). Recording as partial..."
+  echo "WARNING: No promise from QA agent ($(agent_label)) for $FEATURE_ID (attempt $ATTEMPT). Recording as partial..."
   $PY -c "
 import json, sys
 fid = sys.argv[1]
@@ -498,14 +503,14 @@ report.append({
     'attempt': attempt,
     'status': 'partial',
     'sub_phases': {
-        'functional':    {'status': 'skip', 'notes': 'Codex crashed or timed out'},
-        'api_contract':  {'status': 'skip', 'notes': 'Codex crashed or timed out'},
-        'security':      {'status': 'skip', 'notes': 'Codex crashed or timed out'},
-        'accessibility': {'status': 'skip', 'notes': 'Codex crashed or timed out'}
+        'functional':    {'status': 'skip', 'notes': 'QA agent crashed or timed out'},
+        'api_contract':  {'status': 'skip', 'notes': 'QA agent crashed or timed out'},
+        'security':      {'status': 'skip', 'notes': 'QA agent crashed or timed out'},
+        'accessibility': {'status': 'skip', 'notes': 'QA agent crashed or timed out'}
     },
-    'tested_steps': ['Codex crashed or timed out'],
+    'tested_steps': ['QA agent crashed or timed out'],
     'bugs_found': [],
-    'fix_description': 'Codex did not complete'
+    'fix_description': 'QA agent did not complete'
 })
 with open('qa-report.json', 'w') as f:
     json.dump(report, f, indent=2)

@@ -103,6 +103,36 @@
       "default": "ever",
       "description": "Browser automation agent for QA and inspection phases"
     },
+    "inspectAgent": {
+      "type": "string",
+      "enum": ["codex", "claude"],
+      "default": "codex",
+      "description": "Coding agent CLI driving the Inspect loop"
+    },
+    "buildAgent": {
+      "type": "string",
+      "enum": ["codex", "claude"],
+      "default": "codex",
+      "description": "Coding agent CLI driving the Build loop"
+    },
+    "qaAgent": {
+      "type": "string",
+      "enum": ["codex", "claude"],
+      "default": "codex",
+      "description": "Coding agent CLI driving the QA loop"
+    },
+    "architectureAgent": {
+      "type": "string",
+      "enum": ["codex", "claude"],
+      "default": "codex",
+      "description": "Coding agent CLI driving the Phase 1.5 architecture design step"
+    },
+    "reasoningEffort": {
+      "type": "string",
+      "enum": ["minimal", "low", "medium", "high"],
+      "default": "low",
+      "description": "Codex reasoning_effort applied to all loops backed by codex"
+    },
     "skipDeployment": {
       "type": "boolean",
       "default": false,

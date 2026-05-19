@@ -40,12 +40,14 @@ The clone sends real emails via AWS SES, verifies real domains, auto-configures 
 
 A single watchdog orchestrator (`ralph/ralph-watchdog.sh`) drives four phases. It auto-restarts failures, tracks token cost against a budget cap, refuses to enter QA until the workspace proves it builds, and detects zero-progress QA stalls. Up to 5 build-QA cycles per feature.
 
+Every loop phase is backed by either **Codex** (default, `reasoning_effort=low` — empirically best across all four loops) or **Claude**. You pick during onboarding; the choice lands in `ralph-config.json` as `inspectAgent` / `buildAgent` / `qaAgent` / `architectureAgent` (plus `reasoningEffort` for codex), and each loop reads its own field at runtime.
+
 | Phase | Agent | What It Does |
 |-------|-------|-------------|
-| **1. Inspect** | Claude + [Ever CLI](https://foreverbrowsing.com) | Browses the target, scrapes docs deterministically (Scrapling + trafilatura), captures screenshots, generates a PRD with 50+ features |
-| **1.5. Architecture** | Claude (architect) | Turns the PRD into evidence-based decisions — process topology, data model, infra, auth, packaging — recorded in `ralph/architecture-decisions.json` |
-| **2. Build** | Claude | For each feature: vertically slices it into ≤4 testable phases (Phase 2.5), then implements each slice TDD-first, commits and pushes after every slice |
-| **3. QA** | [Codex](https://github.com/openai/codex) + [Ever CLI](https://foreverbrowsing.com) | Per-feature progressive disclosure: Functional → API Contract → Security → Accessibility. Fixes bugs and re-tests until features pass |
+| **1. Inspect** | configurable (default: Codex) + [Ever CLI](https://foreverbrowsing.com) | Browses the target, scrapes docs deterministically (Scrapling + trafilatura), captures screenshots, generates a PRD with 50+ features |
+| **1.5. Architecture** | configurable (default: Codex) | Turns the PRD into evidence-based decisions — process topology, data model, infra, auth, packaging — recorded in `ralph/architecture-decisions.json` |
+| **2. Build** | configurable (default: Codex) | For each feature: vertically slices it into ≤4 testable phases (Phase 2.5), then implements each slice TDD-first, commits and pushes after every slice |
+| **3. QA** | configurable (default: Codex) + [Ever CLI](https://foreverbrowsing.com) | Per-feature progressive disclosure: Functional → API Contract → Security → Accessibility. Fixes bugs and re-tests until features pass |
 
 ---
 
@@ -55,14 +57,14 @@ You can install these ahead of time, or onboarding will prompt you when it needs
 
 ### Coding CLI
 
-The agent that drives Inspect, Build, and QA. We recommend running **Claude Code for Build** and **Codex for QA** so the QA pass is independent.
+The agent that drives Inspect, Architecture, Build, and QA. You pick one during onboarding and the choice applies to every loop.
 
 | Tool | Install |
 |------|---------|
-| [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) **(recommended)** | `npm install -g @anthropic-ai/claude-code` |
-| [Codex CLI](https://github.com/openai/codex) **(recommended)** | `npm install -g @openai/codex` |
+| [Codex CLI](https://github.com/openai/codex) **(default — `reasoning_effort=low`)** | `npm install -g @openai/codex` |
+| [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) | `npm install -g @anthropic-ai/claude-code` |
 
-Any other coding CLI works too — the prompts are plain markdown in `ralph/build-prompt.md` and `ralph/qa-prompt.md`. The watchdog shells out to `claude` and `codex` by default; swap the commands in `ralph/build-ralph.sh` / `ralph/qa-ralph.sh` if you're using something else.
+Codex at low reasoning effort is the empirical best across every loop and is the default. You can override per phase by editing `inspectAgent` / `buildAgent` / `qaAgent` / `architectureAgent` in `ralph-config.json` after onboarding — the loop scripts read those fields at runtime via `ralph/lib/agent-runner.sh`.
 
 ### Browser Agent
 

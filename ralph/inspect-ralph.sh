@@ -15,6 +15,9 @@ else
 fi
 
 [ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./ralph/onboard.sh first."; exit 1; }
+# shellcheck source=lib/agent-runner.sh
+. "$(dirname "$0")/lib/agent-runner.sh"
+load_agent_config inspect
 BROWSER_AGENT=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('browserAgent', 'ever'))" 2>/dev/null || echo "ever")
 # docsUrl is set during onboarding when the actual docs live on a different
 # subdomain (e.g. docs.stripe.com vs stripe.com). If present, the scraper
@@ -24,6 +27,7 @@ DOCS_URL=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('
 echo "=== RALPH-TO-RALPH: Phase 1 (Inspect) ==="
 echo "Target: $TARGET_URL"
 echo "Iterations: $ITERATIONS"
+echo "Agent: $(agent_label)"
 echo ""
 
 # Initialize files
@@ -145,7 +149,7 @@ for ((i=1; i<=$ITERATIONS; i++)); do
 
   _BROWSER_REF=""
   [ "$BROWSER_AGENT" = "ever" ] && _BROWSER_REF="@ralph/ever-cli-reference.md"
-  result=$(timeout 1200 claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
+  result=$(agent_invoke 1200 \
 "@ralph/inspect-prompt.md @ralph/inspect-spec.md $_BROWSER_REF @prd.json @inspect-progress.txt @ralph/pre-setup.md @ralph-config.json
 
 TARGET URL: $TARGET_URL

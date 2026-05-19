@@ -25,6 +25,10 @@ ITERATIONS="${1:-999}"
 [ -f ralph-config.json ] || { echo "ERROR: ralph-config.json not found. Run ./ralph/onboard.sh first."; exit 1; }
 [ -f BUILD_GUIDE.md ] || { echo "ERROR: BUILD_GUIDE.md not found. Run ./ralph/onboard.sh first."; exit 1; }
 
+# shellcheck source=lib/agent-runner.sh
+. "$(dirname "$0")/lib/agent-runner.sh"
+load_agent_config build
+
 STACK_PROFILE=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('stackProfile', 'unknown'))" 2>/dev/null || echo "unknown")
 LANGUAGE=$($PY -c "import json; print(json.load(open('ralph-config.json')).get('language', 'unknown'))" 2>/dev/null || echo "unknown")
 
@@ -41,6 +45,7 @@ fi
 echo "=== RALPH-TO-RALPH: Phase 2 (Build) ==="
 echo "Iterations: $ITERATIONS"
 echo "Stack: $LANGUAGE / $STACK_PROFILE"
+echo "Agent: $(agent_label)"
 echo "Build contract: read BUILD_GUIDE.md, prefer make targets over stack-specific CLIs"
 echo ""
 
@@ -154,7 +159,7 @@ for ((i=1; i<=$ITERATIONS; i++)); do
     # REBUILD MODE: Feature failed QA previously — use root-cause analysis prompt
     echo "  → Rebuild mode: QA failures detected, providing root-cause context"
 
-    result=$(timeout 1200 claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
+    result=$(agent_invoke 1200 \
 "@ralph/build-prompt.md @ralph/pre-setup.md @build-spec.md @prd.json @build-progress.txt @CLAUDE.md @ralph-config.json @qa-report.json
 
 ITERATION: $i of $ITERATIONS
@@ -187,7 +192,7 @@ Output <promise>COMPLETE</promise> only if ALL features pass.")
 
   else
     # FRESH BUILD MODE: No QA failures — standard build prompt
-    result=$(timeout 1200 claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
+    result=$(agent_invoke 1200 \
 "@ralph/build-prompt.md @ralph/pre-setup.md @build-spec.md @prd.json @build-progress.txt @CLAUDE.md @ralph-config.json
 
 ITERATION: $i of $ITERATIONS

@@ -248,12 +248,16 @@ if [ -f ".onboard-answers.tmp" ] && [ ! -f "ralph-config.json" ]; then
   source .onboard-answers.tmp
   # Ensure DEPLOYMENT_PROFILE is set for older tmp files
   DEPLOYMENT_PROFILE="${DEPLOYMENT_PROFILE:-fast-starter}"
+  # Defaults for older tmp files written before the agent prompt was added
+  LOOP_AGENT="${LOOP_AGENT:-codex}"
+  REASONING_EFFORT="${REASONING_EFFORT:-low}"
   echo "Found saved answers from a previous run:"
   echo "  Target:   $TARGET_URL"
   echo "  Clone:    $CLONE_NAME"
   echo "  Profile:  $DEPLOYMENT_PROFILE"
   echo "  Stack:    $CLOUD_PROVIDER${CUSTOM_STACK_DESC:+ (custom: $CUSTOM_STACK_DESC)}"
   echo "  Auth:     $AUTH_MODE"
+  echo "  Agent:    $LOOP_AGENT$([ "$LOOP_AGENT" = "codex" ] && echo " (reasoning_effort=$REASONING_EFFORT)")"
   echo ""
   read -rp "Resume with these? [Y/n]: " _RESUME_ANSWERS
   if [[ "${_RESUME_ANSWERS:-y}" =~ ^[Yy] ]]; then
@@ -678,6 +682,43 @@ case "${BROWSER_CHOICE:-1}" in
     ;;
 esac
 
+echo ""
+echo "Which coding agent should drive the Inspect / Build / QA / Architecture loops?"
+echo ""
+echo "  1) Codex (recommended — empirically best across all loops at low reasoning effort)"
+echo "     Requires: npm install -g @openai/codex"
+echo ""
+echo "  2) Claude (claude -p, claude-opus-4-6)"
+echo "     Requires: claude CLI (https://docs.anthropic.com/en/docs/claude-code)"
+echo ""
+read -rp "Choose loop agent [1]: " AGENT_CHOICE
+AGENT_CHOICE="${AGENT_CHOICE//[[:space:]]/}"
+case "${AGENT_CHOICE:-1}" in
+  1|codex)  LOOP_AGENT="codex" ;;
+  2|claude) LOOP_AGENT="claude" ;;
+  *)
+    echo "Invalid choice. Using Codex."
+    LOOP_AGENT="codex"
+    ;;
+esac
+
+REASONING_EFFORT="low"
+if [ "$LOOP_AGENT" = "codex" ]; then
+  echo ""
+  echo "Codex reasoning effort (applies to every loop):"
+  echo "  1) low     (recommended — fastest and cheapest, best empirical results)"
+  echo "  2) medium"
+  echo "  3) high"
+  echo "  4) minimal"
+  read -rp "Choose [1]: " EFFORT_CHOICE
+  case "${EFFORT_CHOICE//[[:space:]]/}" in
+    2|medium)  REASONING_EFFORT="medium" ;;
+    3|high)    REASONING_EFFORT="high" ;;
+    4|minimal) REASONING_EFFORT="minimal" ;;
+    *)         REASONING_EFFORT="low" ;;
+  esac
+fi
+
 fi  # end _SKIP_QA=false block
 
 # ── Re-verify cloud CLI auth if resuming (sessions can expire between runs) ──
@@ -721,7 +762,26 @@ STACK_PROFILE="dashboard-app"
   printf 'LANGUAGE=%q\n'         "$LANGUAGE"
   printf 'STACK_PROFILE=%q\n'    "$STACK_PROFILE"
   printf 'DEPLOYMENT_PROFILE=%q\n' "$DEPLOYMENT_PROFILE"
+  printf 'LOOP_AGENT=%q\n'       "$LOOP_AGENT"
+  printf 'REASONING_EFFORT=%q\n' "$REASONING_EFFORT"
 } > .onboard-answers.tmp
+
+# Verify the chosen loop agent is installed — fail fast, but only AFTER saving
+# answers so the user can fix the install and rerun without re-prompting.
+if [ "$LOOP_AGENT" = "codex" ] && ! command -v codex &>/dev/null; then
+  echo ""
+  echo "ERROR: Codex CLI is not installed but you selected it as the loop agent."
+  echo "  Install: npm install -g @openai/codex"
+  echo "  Re-run ./ralph/onboard.sh once installed (your answers are saved)."
+  exit 1
+fi
+if [ "$LOOP_AGENT" = "claude" ] && ! command -v claude &>/dev/null; then
+  echo ""
+  echo "ERROR: Claude CLI is not installed but you selected it as the loop agent."
+  echo "  Install: https://docs.anthropic.com/en/docs/claude-code"
+  echo "  Re-run ./ralph/onboard.sh once installed (your answers are saved)."
+  exit 1
+fi
 
 echo ""
 echo "--- Summary ---"
@@ -735,6 +795,11 @@ echo "Cloud:     $CLOUD_PROVIDER"
 echo "Language:  $LANGUAGE (scripted default template)"
 echo "Stack:     $STACK_PROFILE (scripted default template)"
 echo "Database:  Postgres (template default)"
+if [ "$LOOP_AGENT" = "codex" ]; then
+  echo "Agent:     codex (reasoning_effort=$REASONING_EFFORT)"
+else
+  echo "Agent:     claude"
+fi
 if [ "$SKIP_DEPLOY" = "true" ]; then
   _DEPLOY_LABEL="No (build locally only)"
 elif [ "$CLOUD_PROVIDER" = "vercel" ]; then
@@ -784,6 +849,8 @@ The user has already provided their answers:
 - Docs URL: ${DOCS_URL:-(not set — auto-discover during scrape)}. If set, save as 'docsUrl' in ralph-config.json. The doc scraper will target this URL instead of probing subdomains.
 - Language: $LANGUAGE. Set as 'language' in ralph-config.json. This selects the stack template under .claude/skills/ralph-to-ralph-onboard/templates/.
 - Stack profile: $STACK_PROFILE. Set as 'stackProfile' in ralph-config.json.
+- Loop agent: $LOOP_AGENT (codex or claude). Set all four of 'inspectAgent', 'buildAgent', 'qaAgent', and 'architectureAgent' to this value in ralph-config.json.
+- Reasoning effort: $REASONING_EFFORT (applies when an agent is codex). Set as 'reasoningEffort' in ralph-config.json.
 
 SKIP Steps 1 and 2 (already answered above). Start directly from Step 3 (Technical Architecture Scan).
 Research the target product, generate ralph-config.json (INCLUDING 'language' and 'stackProfile' — required), and rewrite the provider-specific config files (preflight, pre-setup, CLAUDE.md, inspect-prompt, build-prompt). Do NOT create package.json, tsconfig.json, schema.ts, or run npm install — the wrapper invokes setup-stack.sh afterwards to install the template.
@@ -830,6 +897,26 @@ if c['cloudProvider'] not in ('aws', 'gcp', 'azure', 'vercel', 'custom'):
     print(f'ERROR: invalid cloudProvider: {c[\"cloudProvider\"]}', file=sys.stderr)
     sys.exit(1)
 " || exit 1
+
+  # ── Force-write the user's loop agent choice into ralph-config.json. ──
+  # Claude is instructed to write these fields, but we re-apply them here so
+  # the user's choice is the source of truth regardless of what Claude did.
+  _LOOP_AGENT="$LOOP_AGENT" _REASONING_EFFORT="$REASONING_EFFORT" $PY -c "
+import json, os
+agent = os.environ['_LOOP_AGENT']
+effort = os.environ['_REASONING_EFFORT']
+with open('ralph-config.json') as f:
+    cfg = json.load(f)
+cfg['inspectAgent'] = agent
+cfg['buildAgent'] = agent
+cfg['qaAgent'] = agent
+cfg['architectureAgent'] = agent
+cfg['reasoningEffort'] = effort
+with open('ralph-config.json', 'w') as f:
+    json.dump(cfg, f, indent=2)
+    f.write('\n')
+print(f'Wrote loop agent config: {agent} (reasoning_effort={effort})')
+"
 
   # ── Install the stack template (same path the skill uses) ──
   # setup-stack.sh reads language + stackProfile from ralph-config.json, copies

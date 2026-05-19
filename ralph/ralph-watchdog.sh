@@ -9,7 +9,11 @@
 # Usage: ./ralph/ralph-watchdog.sh <target-url>
 
 set -euo pipefail
-cd "$(dirname "$0")/.."
+_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$_SCRIPT_DIR/.."
+
+# shellcheck source=lib/agent-runner.sh
+. "$_SCRIPT_DIR/lib/agent-runner.sh"
 
 TARGET_URL="${1:?Usage: $0 <target-url>}"
 LOCKFILE=".ralph-watchdog.lock"
@@ -600,15 +604,23 @@ done
 # ─── PHASE 1.5: Architecture Design ───
 
 if inspect_done && ! architecture_done; then
-  log "Phase 1.5: Designing product architecture..."
+  load_agent_config architecture
+  log "Phase 1.5: Designing product architecture via $(agent_label)..."
   check_time_budget
 
   PHASE_LOG_TMP=$(mktemp)
-  # Invoke architect agent
-  run_phase "$PHASE_LOG_TMP" "Phase 1.5: architecture (claude -p)" 30 \
-    claude -p --dangerously-skip-permissions --model claude-opus-4-6 \
-    "@ralph/architecture-prompt.md @prd.json @target-docs/INDEX.md @ralph-config.json"
-  ARCHITECTURE_EXIT="$PHASE_EXIT"
+  # Invoke architect agent. agent_invoke is a shell function, so we run the
+  # pipefail-safe pattern inline rather than passing it to run_phase (which
+  # execs an external command).
+  set +e +o pipefail
+  agent_invoke 1800 "@ralph/architecture-prompt.md @prd.json @target-docs/INDEX.md @ralph-config.json" \
+    2>&1 | tee -a "$LOG_FILE" > "$PHASE_LOG_TMP"
+  ARCHITECTURE_EXIT=${PIPESTATUS[0]}
+  set -e -o pipefail
+  if [ "$ARCHITECTURE_EXIT" -ne 0 ]; then
+    log "Phase 1.5: architecture ($(agent_label)) exited non-zero (exit=$ARCHITECTURE_EXIT). Last 30 lines of phase output:"
+    tail -n 30 "$PHASE_LOG_TMP" 2>/dev/null | sed 's/^/    /' | tee -a "$LOG_FILE" >/dev/null
+  fi
 
   LOG_TAIL=$(tail -50 "$PHASE_LOG_TMP")
   COST_INFO=$(update_cost "architecture" "architecture" "$LOG_TAIL")

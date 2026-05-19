@@ -37,6 +37,7 @@ test.txt
 # Tool state
 .omc/
 .omx/
+.superset/
 target-docs/
 
 # Test artifacts
