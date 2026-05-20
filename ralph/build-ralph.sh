@@ -160,7 +160,20 @@ for ((i=1; i<=$ITERATIONS; i++)); do
     echo "  → Rebuild mode: QA failures detected, providing root-cause context"
 
     result=$(agent_invoke 1200 \
-"@ralph/build-prompt.md @ralph/pre-setup.md @build-spec.md @prd.json @build-progress.txt @CLAUDE.md @ralph-config.json @qa-report.json
+"@ralph/build-prompt.md
+
+== CONTEXT FILES (read with cat / your Read tool before using their contents) ==
+  - build-spec.md        — primary product, architecture, design, data, and build-order spec
+  - prd.json             — feature list; pick the first build_pass:false entry
+  - build-progress.txt   — work already completed; read before choosing implementation work
+  - qa-report.json       — QA failures for rebuild mode; inspect before patching
+  - CLAUDE.md            — repo commands, stack notes, and quality standards
+  - ralph/pre-setup.md   — environment and tooling notes
+  - ralph-config.json    — stack, provider, auth, browser, and deployment config
+  - BUILD_GUIDE.md       — stack-specific commands and layout after onboarding
+  - target-docs/INDEX.md — scraped documentation index for API/SDK behavior
+  - ralph/screenshots/inspect/ — original product visual references
+  - ralph/screenshots/build/   — save build smoke-test screenshots here
 
 ITERATION: $i of $ITERATIONS
 PROGRESS: $PASSES/$TOTAL features build_pass
@@ -193,7 +206,19 @@ Output <promise>COMPLETE</promise> only if ALL features pass.")
   else
     # FRESH BUILD MODE: No QA failures — standard build prompt
     result=$(agent_invoke 1200 \
-"@ralph/build-prompt.md @ralph/pre-setup.md @build-spec.md @prd.json @build-progress.txt @CLAUDE.md @ralph-config.json
+"@ralph/build-prompt.md
+
+== CONTEXT FILES (read with cat / your Read tool before using their contents) ==
+  - build-spec.md        — primary product, architecture, design, data, and build-order spec
+  - prd.json             — feature list; pick the first build_pass:false entry
+  - build-progress.txt   — work already completed; read before choosing implementation work
+  - CLAUDE.md            — repo commands, stack notes, and quality standards
+  - ralph/pre-setup.md   — environment and tooling notes
+  - ralph-config.json    — stack, provider, auth, browser, and deployment config
+  - BUILD_GUIDE.md       — stack-specific commands and layout after onboarding
+  - target-docs/INDEX.md — scraped documentation index for API/SDK behavior
+  - ralph/screenshots/inspect/ — original product visual references
+  - ralph/screenshots/build/   — save build smoke-test screenshots here
 
 ITERATION: $i of $ITERATIONS
 PROGRESS: $PASSES/$TOTAL features build_pass

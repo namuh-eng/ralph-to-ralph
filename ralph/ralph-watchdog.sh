@@ -613,7 +613,15 @@ if inspect_done && ! architecture_done; then
   # pipefail-safe pattern inline rather than passing it to run_phase (which
   # execs an external command).
   set +e +o pipefail
-  agent_invoke 1800 "@ralph/architecture-prompt.md @prd.json @target-docs/INDEX.md @ralph-config.json" \
+  agent_invoke 1800 "@ralph/architecture-prompt.md
+
+== CONTEXT FILES (read with cat / your Read tool before making decisions) ==
+  - prd.json                    — discovered feature inventory and priorities
+  - ralph-config.json           — stack, provider, auth, browser, and deployment config
+  - BUILD_GUIDE.md              — stack-specific commands, layout, and deployment assumptions
+  - target-docs/INDEX.md        — scraped documentation index; open specific docs as needed
+  - ralph/screenshots/inspect/  — visual evidence from inspection
+  - schemas/architecture-decision.schema.json — required architecture decision shape" \
     2>&1 | tee -a "$LOG_FILE" > "$PHASE_LOG_TMP"
   ARCHITECTURE_EXIT=${PIPESTATUS[0]}
   set -e -o pipefail

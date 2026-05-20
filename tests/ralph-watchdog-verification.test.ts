@@ -17,7 +17,7 @@ describe("ralph-watchdog verification gate", () => {
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "watchdog-test-"));
-    fs.mkdirSync(path.join(tmpDir, "ralph"), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, "ralph/lib"), { recursive: true });
 
     execFileSync("git", ["init"], { cwd: tmpDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.name", "Test User"], {
@@ -33,10 +33,18 @@ describe("ralph-watchdog verification gate", () => {
       path.join(repoRoot, "ralph/ralph-watchdog.sh"),
       path.join(tmpDir, "ralph/ralph-watchdog.sh"),
     );
+    fs.copyFileSync(
+      path.join(repoRoot, "ralph/lib/agent-runner.sh"),
+      path.join(tmpDir, "ralph/lib/agent-runner.sh"),
+    );
 
     fs.writeFileSync(
       path.join(tmpDir, "ralph-config.json"),
       JSON.stringify({ browserAgent: "none" }),
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, "ralph/architecture-decisions.json"),
+      "[]",
     );
 
     fs.writeFileSync(

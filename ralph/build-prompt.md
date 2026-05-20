@@ -25,6 +25,19 @@ Rules:
 - `ralph/screenshots/build/`: Your own verification screenshots (save yours here).
 - `target-docs/`: Extracted docs — API reference, guides, SDK examples.
 
+## Required Reads Before Acting
+
+The loop prompt provides context as a manifest to keep long runs under budget. Do not infer the contents of those files from their names.
+
+Before choosing or changing a feature, read these files with `cat` or your Read tool:
+- `build-spec.md` first — primary architecture, design, data model, and build-order source.
+- `build-progress.txt` — prior implementation decisions and test results.
+- `prd.json` — pick the first `build_pass: false` entry and inspect its `ui_details`, `behavior`, `data_model`, and dependencies.
+- `ralph-config.json`, `BUILD_GUIDE.md`, and `.ralph-setup-done` — confirm stack, commands, auth mode, provider, and file layout.
+- `CLAUDE.md` — repo-specific quality and command expectations.
+
+Read `qa-report.json` before any rebuild-mode fix. Read `target-docs/INDEX.md` before implementing API, SDK, auth, webhook, infrastructure, or deployment behavior from docs. Inspect screenshots before UI work.
+
 ## This Iteration
 
 1. Read `build-spec.md` for the overall architecture and build order.
