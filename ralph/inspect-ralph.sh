@@ -147,13 +147,23 @@ echo ""
 for ((i=1; i<=$ITERATIONS; i++)); do
   echo "--- Inspection iteration $i/$ITERATIONS ---"
 
-  _BROWSER_REF=""
-  [ "$BROWSER_AGENT" = "ever" ] && _BROWSER_REF="@ralph/ever-cli-reference.md"
   result=$(agent_invoke 1200 \
-"@ralph/inspect-prompt.md @ralph/inspect-spec.md $_BROWSER_REF @prd.json @inspect-progress.txt @ralph/pre-setup.md @ralph-config.json
+"@ralph/inspect-prompt.md
+
+== CONTEXT FILES (read with cat / your Read tool only when needed) ==
+  - ralph/inspect-spec.md       — full inspection strategy and output requirements
+  - prd.json                    — feature list to append/update
+  - inspect-progress.txt        — inspected pages and current progress; read first
+  - ralph/pre-setup.md          — environment and tooling notes
+  - ralph-config.json           — stack, provider, auth, browser, and deployment config
+  - BUILD_GUIDE.md              — stack-specific commands and layout after onboarding
+  - target-docs/INDEX.md        — scraped documentation index; open before raw docs
+  - target-docs/coverage.json   — scraper coverage result and discovery method
+  - ralph/ever-cli-reference.md — Ever CLI reference when browserAgent is ever
 
 TARGET URL: $TARGET_URL
 ITERATION: $i of $ITERATIONS
+BROWSER_AGENT: $BROWSER_AGENT
 
 Inspect exactly ONE page/feature, then commit, push, and stop.
 Output <promise>NEXT</promise> when done with this page.

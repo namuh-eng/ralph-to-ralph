@@ -24,6 +24,19 @@ This is a **generic product cloning system** — the target could be any SaaS st
 - `inspect-progress.txt`: What you've already inspected (read first, update at end).
 - `target-docs/`: **Pre-scraped target product documentation.** A deterministic Python scraper (`scripts/scrape-docs.py`) populated this directory before iteration 1. Read `target-docs/INDEX.md` first to see what's available. **You do NOT need to scrape docs yourself** — read from disk.
 
+## Required Reads Before Acting
+
+The loop prompt provides context as a manifest to keep long runs under budget. Do not infer the contents of those files from their names.
+
+Before choosing work for an iteration, read these files with `cat` or your Read tool:
+- `inspect-progress.txt` first — tells you what was already inspected.
+- `ralph/inspect-spec.md` — authoritative inspection strategy and required artifacts.
+- `ralph-config.json` — confirms browser agent, stack, auth, provider, and deployment choices.
+- `BUILD_GUIDE.md` and `.ralph-setup-done` after onboarding — authoritative stack layout and commands.
+- `target-docs/INDEX.md` and `target-docs/coverage.json` before using docs evidence.
+
+Read `ralph/ever-cli-reference.md` before using Ever-specific commands. Read `prd.json` before appending or updating feature entries.
+
 ## This Iteration
 
 1. Read `inspect-progress.txt` to see what has been done.
