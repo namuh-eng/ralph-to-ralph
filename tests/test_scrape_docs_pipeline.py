@@ -50,6 +50,11 @@ def _stub_heavy_imports() -> None:
         sys.modules["defusedxml"] = defusedxml
         sys.modules["defusedxml.ElementTree"] = et
 
+    if "requests" not in sys.modules:
+        requests = types.ModuleType("requests")
+        requests.get = lambda *a, **k: None  # type: ignore
+        sys.modules["requests"] = requests
+
 
 _stub_heavy_imports()
 
